@@ -1,16 +1,18 @@
 #### Historical Fantasy Football ####
 
 library(tidyverse)
+library(knitr)
 library(nflfastR)
 library(ggrepel)
-library(gt)
-library(gtExtras)
 library(ggthemes)
 library(gganimate)
 library(ggimage)
+library(gt)
+library(gtExtras)
 
 
 pbp <- nflfastR::load_pbp(c(2013:2022))
+roster <- nflfastR::fast_scraper_roster(2022)
 pbp_fantasy <- pbp %>%
     mutate(fantasy_season = if_else((season<=2020 & week<=16) |
                                         (season>2020 & week<=17), TRUE, FALSE)) %>%
@@ -44,15 +46,15 @@ rush_tds_adj <- 6
 rec_yds_adj <- 0.1
 rec_tds_adj <- 6
 rec_adj <- 1
-int_adj <- 0
-fum_adj <- 0
+int_adj <- -1
+fum_adj <- -1
 
 # yearly fantasy points
 stats_yearly <- stats_yr %>%
     filter(position %in% c("QB","RB","WR","TE")) %>%
     mutate(games_adj = round((if_else(season <= 2020, (games/15),
                                       (games/16))*16),0),
-           total_points_mfl =
+           total_points =
                case_when(
                    position == "QB" ~ (passing_yards*pass_yds_adj + passing_tds*pass_tds_adj
                                        + rushing_yards*rush_yds_adj + rushing_tds*rush_tds_adj
@@ -70,19 +72,22 @@ stats_yearly <- stats_yr %>%
                                        + receiving_yards*rec_yds_adj + receiving_tds*rec_tds_adj
                                        + receptions*rec_adj + rushing_fumbles_lost*fum_adj
                                        + receiving_fumbles_lost*fum_adj)),
-           average_points_mfl = total_points_mfl/games_adj,
+           average_points = total_points/games_adj,
+           touches = carries + receptions,
+           pot_touches = carries + targets,
+           points_per_touch = total_points/touches,
            position = factor(position, levels = c("QB","RB","WR","TE"))
     ) %>%
     select(season,player_display_name,position,recent_team,games,games_adj,
            completions:passing_epa,pacr:rushing_epa,receptions:receiving_epa,racr:wopr,
-           total_points_mfl,average_points_mfl) %>%
-    arrange(desc(total_points_mfl))
+           touches,pot_touches,points_per_touch,total_points,average_points) %>%
+    arrange(desc(total_points))
 
 
 # weekly fantasy points
 stats_weekly <- stats_wk %>%
     filter(position %in% c("QB","RB","WR","TE")) %>%
-    mutate(total_points_mfl =
+    mutate(total_points =
                case_when(
                    position == "QB" ~ (passing_yards*pass_yds_adj + passing_tds*pass_tds_adj
                                        + rushing_yards*rush_yds_adj + rushing_tds*rush_tds_adj
@@ -104,68 +109,126 @@ stats_weekly <- stats_wk %>%
     ) %>%
     select(season,player_display_name,position,recent_team,week,
            completions:passing_epa,pacr:rushing_epa,receptions:receiving_epa,racr:wopr,
-           total_points_mfl) %>%
-    arrange(desc(total_points_mfl))
+           total_points) %>%
+    arrange(desc(total_points))
 
 
 stats_weekly_agg <- stats_weekly %>%
     group_by(season,player_display_name,position) %>%
     summarise(games_played = n(),
-              total_points = sum(total_points_mfl),
-              average_points = mean(total_points_mfl),
-              sd_dev = sd(total_points_mfl)
+              average_points = mean(total_points),
+              sd_dev = sd(total_points),
+              total_points = sum(total_points)
     ) %>%
     arrange(desc(total_points)) %>%
+    select(season:games_played,total_points,average_points:sd_dev) %>%
     left_join(stats_yearly[,c(1:4)], by = c("player_display_name" = "player_display_name",
                                             "season" = "season", "position" = "position"))
 
-# stats_weekly_agg %>%
-#     filter(season >= 2018) %>%
-#     group_by(season,position) %>%
-#     slice(1:12) %>%
-#     ggplot(aes(position,average_points)) +
-#     geom_boxplot() +
-#     geom_point() +
-#     facet_wrap(~season)
-# 
-# stats_weekly_agg %>%
-#     filter(season >= 2018) %>%
-#     group_by(season,position) %>%
-#     slice(1:36) %>%
-#     ggplot(aes(position,average_points)) +
-#     geom_boxplot() +
-#     facet_wrap(~season)
+rm(list=ls()[! ls() %in% c("stats_yearly","stats_weekly","stats_weekly_agg",
+                           "stats_yr","stats_wk","pbp","pbp_fantasy","roster")])
 
+glimpse(pbp)
+glimpse(stats_yearly)
+glimpse(stats_weekly)
+glimpse(stats_weekly_agg)
+
+
+# VORP Curve ----
+# VORP calculations
 vorp_yearly <- stats_yearly %>%
-    filter(season %in% c(2018:2022))
+    filter(season %in% c(2017:2022))
 
 unique_vorp_seasons <- unique(vorp_yearly$season)
 stats_vorp_final <- data.frame()
+
+# for (i in unique_vorp_seasons) {
+#     
+#     stats_vorp_yearly <- vorp_yearly %>%
+#         filter(season == i)
+#     
+#     # Filtering top 12 each position and  next top 12 players
+#     stats_vorp_filtered <- stats_vorp_yearly %>%
+#         group_by(position) %>%
+#         slice(19:n()) %>%
+#         ungroup() %>%
+#         arrange(desc(total_points)) %>%
+#         slice(13:n())
+#     
+#     # Further filtering and selecting top players for QB and flex positions
+#     stats_vorp_filtered_qb <- stats_vorp_filtered %>%
+#         filter(position == "QB")
+#     
+#     stats_vorp_filtered_flex <- stats_vorp_filtered %>%
+#         filter(position != "QB") %>%
+#         slice(25:n())
+#     
+#     # Final selection of top players by position
+#     stats_vorp_replacement <- bind_rows(stats_vorp_filtered_qb,stats_vorp_filtered_flex) %>%
+#         arrange(desc(total_points)) %>%
+#         group_by(position) %>%
+#         slice(1) %>%
+#         arrange(position)
+#     
+#     # Extracting replacement values for each position
+#     replacement_values <- data.frame(
+#         position = stats_vorp_replacement$position,
+#         replacement_points = stats_vorp_replacement$total_points
+#     )
+#     
+#     # Calculating value over replacement player (VORP)
+#     stats_vorp <- stats_vorp_yearly %>%
+#         mutate(
+#             vorp = total_points - replacement_values$replacement_points[match(position,
+#                                                           replacement_values$position)])
+#     
+#     # Calculating VORP total and multiplier
+#     value_multiplier <- ((300-21)*12) / sum(stats_vorp %>% filter(vorp >= 0) %>% pull(vorp))
+#     
+#     # Calculating value based on VORP and creating new columns
+#     stats_vorp_value <- stats_vorp %>%
+#         mutate(value = round(vorp*value_multiplier, 0)) %>%
+#         group_by(position) %>%
+#         mutate(pos_rank = round(rank(-total_points, ties.method = "first"))) %>%
+#         ungroup() %>%
+#         mutate(vorp = round(vorp, 1))
+#     
+#     stats_vorp_final <- bind_rows(stats_vorp_final, stats_vorp_value)
+#     
+# }
 
 for (i in unique_vorp_seasons) {
     
     stats_vorp_yearly <- vorp_yearly %>%
         filter(season == i)
     
-    # Filtering top 12 each position and  next top 12 players
     stats_vorp_filtered <- stats_vorp_yearly %>%
         group_by(position) %>%
-        slice(19:n()) %>%
+        slice(13:n()) %>%
         ungroup() %>%
-        arrange(desc(total_points_mfl)) %>%
-        slice(13:n())
+        arrange(desc(total_points))
     
-    # Further filtering and selecting top players for QB and flex positions
     stats_vorp_filtered_qb <- stats_vorp_filtered %>%
         filter(position == "QB")
     
-    stats_vorp_filtered_flex <- stats_vorp_filtered %>%
-        filter(position != "QB") %>%
-        slice(25:n())
+    stats_vorp_filtered_te <- stats_vorp_filtered %>%
+        filter(position == "TE")
+    
+    stats_vorp_filtered_rb_wr <- stats_vorp_filtered %>%
+        filter(position == "RB" | position == "WR") %>%
+        group_by(position) %>%
+        slice(13:n()) %>%
+        ungroup() %>%
+        arrange(desc(total_points))
+    
+    stats_vorp_filtered_flex <- stats_vorp_filtered_rb_wr %>%
+        bind_rows(stats_vorp_filtered_te) %>%
+        slice(19:n())
+    
     
     # Final selection of top players by position
     stats_vorp_replacement <- bind_rows(stats_vorp_filtered_qb,stats_vorp_filtered_flex) %>%
-        arrange(desc(total_points_mfl)) %>%
+        arrange(desc(total_points)) %>%
         group_by(position) %>%
         slice(1) %>%
         arrange(position)
@@ -173,14 +236,14 @@ for (i in unique_vorp_seasons) {
     # Extracting replacement values for each position
     replacement_values <- data.frame(
         position = stats_vorp_replacement$position,
-        replacement_points = stats_vorp_replacement$total_points_mfl
+        replacement_points = stats_vorp_replacement$total_points
     )
     
     # Calculating value over replacement player (VORP)
     stats_vorp <- stats_vorp_yearly %>%
         mutate(
-            vorp = total_points_mfl - replacement_values$replacement_points[match(position,
-                                                          replacement_values$position)])
+            vorp = total_points - replacement_values$replacement_points[match(position,
+                                                                              replacement_values$position)])
     
     # Calculating VORP total and multiplier
     value_multiplier <- ((300-21)*12) / sum(stats_vorp %>% filter(vorp >= 0) %>% pull(vorp))
@@ -189,7 +252,7 @@ for (i in unique_vorp_seasons) {
     stats_vorp_value <- stats_vorp %>%
         mutate(value = round(vorp*value_multiplier, 0)) %>%
         group_by(position) %>%
-        mutate(pos_rank = round(rank(-total_points_mfl, ties.method = "first"))) %>%
+        mutate(pos_rank = round(rank(-total_points, ties.method = "first"))) %>%
         ungroup() %>%
         mutate(vorp = round(vorp, 1))
     
@@ -197,70 +260,83 @@ for (i in unique_vorp_seasons) {
     
 }
 
-# Creating a plot of VORP versus position rank
+glimpse(stats_vorp_final)
+
+# VORP by season
 stats_vorp_final %>%
     filter(vorp >= 0) %>%
     ggplot(aes(pos_rank, vorp, color = position)) +
     geom_line() +
     geom_point() +
-    scale_x_continuous(breaks = seq(1, 30, 1), limits = c(1, 30)) +
-    scale_y_continuous(breaks = seq(0, 225, 25), limits = c(00, 225)) +
-    scale_color_discrete(breaks = c("QB", "RB", "WR", "TE")) +
-    scale_fill_discrete(breaks = c("QB", "RB", "WR", "TE")) +
     theme_bw() +
-    theme(panel.grid.minor = element_blank())
+    theme(panel.grid.minor = element_blank()) +
+    facet_wrap(~season)
 
-# Yearly by value
+# VORP by single year
 stats_vorp_final %>%
     filter(vorp >= 0 & season == 2022) %>%
-    ggplot(aes(pos_rank, value, color = position)) +
+    ggplot(aes(pos_rank, vorp, color = position)) +
     geom_line() +
     geom_point() +
-    scale_x_continuous(breaks = seq(1, 40, 1), limits = c(1, 40)) +
-    scale_y_continuous(breaks = seq(0, 125, 25), limits = c(0, 125)) +
-    # scale_color_discrete(breaks = c("QB", "RB", "WR", "TE")) +
-    # scale_fill_discrete(breaks = c("QB", "RB", "WR", "TE")) +
     theme_bw() +
     theme(panel.grid.minor = element_blank())
 
-
+# Average VORP by position rank
 stats_vorp_final %>%
     group_by(position, pos_rank) %>%
     summarise(avg_vorp = mean(vorp)) %>%
     filter(avg_vorp >= 0) %>%
-    ggplot(aes(pos_rank,avg_vorp, color = position)) +
+    ggplot(aes(pos_rank, avg_vorp, color = position)) +
     geom_line() +
-    geom_point()
+    geom_point() + 
+    theme_bw()
 
+# Totals points by season (+ VORP)
 stats_vorp_final %>%
     filter(vorp >= 0) %>%
-    ggplot(aes(pos_rank, vorp, color = position)) +
+    ggplot(aes(pos_rank, total_points, color = position)) +
     geom_line() +
     geom_point() +
-    facet_wrap(~season)
-
-stats_vorp_final %>%
-    group_by(position,pos_rank) %>%
-    summarise(avg_value = mean(value),
-              avg_vorp = mean(vorp)) %>%
-    filter(avg_vorp >= 0) %>%
-    ggplot(aes(pos_rank,avg_value, color = position)) +
-    geom_line() +
-    geom_point()
-
-stats_vorp_final %>%
-    filter(vorp >= 0) %>%
-    ggplot(aes(pos_rank, value, color = position)) +
-    geom_line() +
-    geom_point() +
+    theme_bw() +
+    theme(panel.grid.minor = element_blank()) +
     facet_wrap(~season)
 
 
+# Total points by SD ----
+stats_weekly_agg %>%
+    left_join(stats_vorp_final[,c(1:3,48)], by = c("season","player_display_name","position")) %>%
+    filter(vorp >= 0 & season == 2022) %>%
+    ggplot(aes(sd_dev, total_points)) +
+    geom_point() +
+    # geom_text_repel(aes(label = player_display_name), show.legend = F) +
+    theme_bw() +
+    theme(panel.grid.minor = element_blank()) +
+    facet_wrap(~position)
+
+stats_weekly_agg %>%
+    left_join(stats_vorp_final[,c(1:3,48)], by = c("season","player_display_name","position")) %>%
+    filter(vorp >= 0 & position == "RB") %>%
+    ggplot(aes(sd_dev, total_points)) +
+    geom_point() +
+    # geom_text_repel(aes(label = player_display_name), show.legend = F) +
+    theme_bw() +
+    theme(panel.grid.minor = element_blank()) +
+    facet_wrap(~season)
+
+stats_weekly_agg %>%
+    filter(total_points >= 150) %>%
+    ggplot(aes(sd_dev, total_points)) +
+    geom_point() +
+    theme_bw() +
+    theme(panel.grid.minor = element_blank()) +
+    facet_wrap(~position)
 
 
+# Cluster curve ----
 # Clustering
 set.seed(214)
 k_max <- 10
+selected_season <- 2022
 unique_pos <- unique(stats_vorp_final$position)
 
 proj_vorp_tiers <- data.frame()
@@ -268,7 +344,7 @@ proj_vorp_tiers <- data.frame()
 for (i in unique_pos) {
     
     km_vorp <- stats_vorp_final %>%
-        filter(season == 2022 & vorp >= 0 & position == i)
+        filter(season == selected_season & vorp >= 0 & position == i)
     
     if (i %in% c("TE")) {
         
@@ -291,8 +367,8 @@ for (i in unique_pos) {
             ggplot(aes(pos_rank, vorp, color = tier)) +
             geom_point() +
             geom_text_repel(aes(label = player_display_name), show.legend = F) +
-            scale_x_continuous("Position Rank", breaks = seq(1, 30, 1)) +
-            scale_y_continuous("Value") +
+            scale_x_continuous("Position Rank", breaks = seq(1, length(vorp_tiers), 1)) +
+            scale_y_continuous("VORP") +
             theme_bw() +
             theme(panel.grid.minor = element_blank())
         
@@ -318,11 +394,11 @@ for (i in unique_pos) {
         }
         
         vorp_tiers_viz <- vorp_tiers %>%
-            ggplot(aes(pos_rank, value, color = tier)) +
+            ggplot(aes(pos_rank, vorp, color = tier)) +
             geom_point() +
             geom_text_repel(aes(label = player_display_name), show.legend = F) +
-            scale_x_continuous("Position Rank", breaks = seq(1, 30, 1)) +
-            scale_y_continuous("Value") +
+            scale_x_continuous("Position Rank", breaks = seq(1, length(vorp_tiers), 1)) +
+            scale_y_continuous("VORP") +
             theme_bw() +
             theme(panel.grid.minor = element_blank())
         
@@ -334,8 +410,227 @@ for (i in unique_pos) {
 }
 
 
-nflfastR::teams_colors_logos
+# HVT RB ----
+# https://www.opensourcefootball.com/posts/2020-08-25-open-source-fantasy-football-visualizing-trap-backs/
+roster_pos <- roster %>%
+    select(gsis_id,position,full_name) %>%
+    filter(position %in% c("QB","RB","WR","TE")) %>%
+    distinct()
 
+pbp_hvt <- pbp %>%
+    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
+    left_join(roster_pos, by = c("receiver_id" = "gsis_id"), na_matches="never") %>%
+    rename(receiver_full_name = full_name,
+           receiver_position = position) %>%
+    left_join(roster_pos, by = c("rusher_id" = "gsis_id"), na_matches="never") %>%
+    rename(rusher_full_name = full_name,
+           rusher_position = position) %>%
+    mutate(ten_zone_rush = if_else(yardline_100 <= 10 & rush_attempt == 1, 1, 0),
+           ten_zone_pass = if_else(yardline_100 <= 10 & pass_attempt == 1 & sack == 0, 1, 0),
+           ten_zone_rec = if_else(yardline_100 <= 10 & complete_pass == 1, 1, 0),
+           field_touch = case_when(
+               yardline_100 <= 100 & yardline_100 >= 81 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_100_81",
+               yardline_100 <= 80 & yardline_100 >= 61 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_80_61",
+               yardline_100 <= 60 & yardline_100 >= 41 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_60_41",
+               yardline_100 <= 40 & yardline_100 >= 21 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_40_21",
+               yardline_100 <= 20 & yardline_100 >= 0 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_20_1",
+               TRUE ~ "other"))
+
+rb_hvt <- pbp_hvt %>%
+    filter(rusher_position == "RB" | receiver_position == "RB") %>%
+    mutate(player_name = if_else(is.na(rusher_player_name), receiver_player_name, rusher_player_name),
+           player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
+    group_by(player_name,
+             player_id) %>%
+    summarize(rush_attempts = sum(rush_attempt),
+              ten_zone_rushes = sum(ten_zone_rush),
+              receptions = sum(complete_pass),
+              total_touches = rush_attempts + receptions,
+              hvts = receptions + ten_zone_rushes,
+              non_hvts = total_touches - hvts,
+              hvt_pct = hvts / total_touches,
+              non_hvt_pct = non_hvts / total_touches,
+              hvt_rec = receptions / total_touches,
+              hvt_rush = ten_zone_rushes / total_touches) %>%
+    pivot_longer(cols = c(hvt_pct, non_hvt_pct, hvt_rec, hvt_rush),
+                 names_to = "hvt_type", values_to = "touch_pct") %>%
+    filter(total_touches >= 100)
+
+rb_hvt %>%
+    filter(hvt_type == "hvt_pct") %>%
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct))) +
+    geom_col() +
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(x = "Percent of plays",
+         fill = "Distance from goal line",
+         title = "Visualization of TRAP backs, displaying RB high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+rb_hvt %>%
+    filter(hvt_type %in% c("hvt_rush","hvt_rec")) %>%
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = hvt_type)) +
+    geom_bar(position="stack", stat="identity") +
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(x = "Percent of plays",
+         fill = "Distance from goal line",
+         title = "Visualization of TRAP backs, displaying RB high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+         caption = "Figure: @SamHoppen | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+
+# HVT WR ----
+# https://www.opensourcefootball.com/posts/2020-08-25-open-source-fantasy-football-visualizing-trap-backs/
+
+wr_hvt <- pbp_hvt %>%
+    filter(rusher_position == "WR" | receiver_position == "WR") %>%
+    mutate(player_name = if_else(is.na(rusher_player_name), receiver_player_name, rusher_player_name),
+           player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
+    group_by(player_name,
+             player_id) %>%
+    summarize(rush_attempts = sum(rush_attempt),
+              ten_zone_rushes = sum(ten_zone_rush),
+              ten_zone_rec = sum(ten_zone_rec),
+              receptions = sum(complete_pass),
+              total_touches = rush_attempts + receptions,
+              hvts = ten_zone_rec + ten_zone_rushes,
+              non_hvts = total_touches - hvts,
+              hvt_pct = hvts / total_touches,
+              non_hvt_pct = non_hvts / total_touches,
+              hvt_rec = ten_zone_rec / total_touches,
+              hvt_rush = ten_zone_rushes / total_touches) %>%
+    pivot_longer(cols = c(hvt_pct, non_hvt_pct, hvt_rec, hvt_rush),
+                 names_to = "hvt_type", values_to = "touch_pct") %>%
+    filter(total_touches >= 75)
+
+wr_hvt %>%
+    filter(hvt_type == "hvt_pct") %>%
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct))) +
+    geom_col() +
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(x = "Percent of plays",
+         fill = "Distance from goal line",
+         title = "Visualization of TRAP backs, displaying WR high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+wr_hvt %>%
+    filter(hvt_type %in% c("hvt_rush","hvt_rec")) %>%
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = hvt_type)) +
+    geom_bar(position="stack", stat="identity") +
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(x = "Percent of plays",
+         fill = "Distance from goal line",
+         title = "Visualization of TRAP backs, displaying WR high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+         caption = "Figure: @SamHoppen | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+# Points by total touches ----
+stats_yearly %>%
+    filter(season == 2022 & position %in% c("RB","WR") & touches > 50) %>%
+    select(player_display_name, position, total_points, touches, points_per_touch) %>%
+    arrange(desc(points_per_touch)) %>%
+    head(10) %>%
+    kable()
+
+stats_yearly %>%
+    filter(season == 2022 & position == "RB" & touches > 100) %>%
+    select(player_display_name, position, total_points, touches, points_per_touch) %>%
+    arrange(desc(points_per_touch)) %>%
+    head(10) %>%
+    kable()
+
+
+
+
+
+
+glimpse(pbp)
+
+pbp_hvt_wr <- pbp %>%
+    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
+    left_join(roster_pos, by = c("receiver_id" = "gsis_id"), na_matches="never") %>%
+    rename(receiver_full_name = full_name,
+           receiver_position = position) %>%
+    left_join(roster_pos, by = c("rusher_id" = "gsis_id"), na_matches="never") %>%
+    rename(rusher_full_name = full_name,
+           rusher_position = position) %>%
+    mutate(ten_zone_rush = if_else(yardline_100 <= 10 & rush_attempt == 1, 1, 0),
+           ten_zone_rec = if_else(yardline_100 <= 10 & complete_pass == 1, 1, 0),
+           tgt = if_else(complete_pass == 1 | incomplete_pass == 1, 1, 0),
+           ten_zone_tgt = if_else(yardline_100 <= 10 & (complete_pass == 1 | incomplete_pass == 1), 1, 0),
+           field_touch = case_when(
+               yardline_100 <= 100 & yardline_100 >= 81 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_100_81",
+               yardline_100 <= 80 & yardline_100 >= 61 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_80_61",
+               yardline_100 <= 60 & yardline_100 >= 41 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_60_41",
+               yardline_100 <= 40 & yardline_100 >= 21 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_40_21",
+               yardline_100 <= 20 & yardline_100 >= 0 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_20_1",
+               TRUE ~ "other"))
+
+wr_hvt <- pbp_hvt_wr %>%
+    filter(rusher_position == "WR" | receiver_position == "WR") %>%
+    mutate(player_name = if_else(is.na(rusher_player_name), receiver_player_name, rusher_player_name),
+           player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
+    group_by(player_name,
+             player_id) %>%
+    summarize(rush_attempts = sum(rush_attempt),
+              ten_zone_rushes = sum(ten_zone_rush),
+              tgt = sum(tgt),
+              ten_zone_tgt = sum(ten_zone_tgt),
+              adot = mean(air_yards, na.rm = T),
+              total_pot_touches = sum(rush_attempt) + sum(tgt),
+              hvt_pot = ten_zone_tgt + ten_zone_rushes,
+              hvt_pot_pct = hvt_pot / total_pot_touches) %>%
+    pivot_longer(cols = c(hvt_pot_pct),
+                 names_to = "hvt_type", values_to = "touch_pct") %>%
+    filter(total_pot_touches >= 75)
+
+
+wr_hvt %>%
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct))) +
+    geom_col() +
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(x = "Percent of plays",
+         fill = "Distance from goal line",
+         title = "Visualization of TRAP backs, displaying WR high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+
+
+wr_hvt %>%
+    ggplot(aes(hvt_pot, reorder(player_name, hvt_pot), fill = adot)) +
+    geom_col() +
+    scale_x_continuous() +
+    labs(x = "Percent of plays",
+         fill = "Distance from goal line",
+         title = "Visualization of TRAP backs, displaying WR high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+
+
+
+    
+
+
+
+
+
+
+# Player viz ----
 player <- stats_yearly %>%
     filter(player_display_name == "Dak Prescott" & season == max(season)) %>%
     select(player_display_name, position, recent_team) %>%
@@ -360,7 +655,7 @@ stats_weekly_agg %>%
         values = c(player$team_color, player$team_color2),
         labels = c("Total Points", "Average Points"),
         guide = "legend") +
-    labs(title = "Total & Average Points by Season", subtitle = "Excludes Final Week of Each Season") + 
+    labs(title = "Total & Average Points by Season", subtitle = "Only Includes Fantasy Season") + 
     xlab("Season") +
     ylab("Total Points") +
     theme_bw()
@@ -373,7 +668,7 @@ stats_weekly %>%
                             breaks = c(0, 4, 8, 12, 17),
                             labels = c("Weeks 1-4", "Weeks 5-8", "Weeks 9-12", "Weeks 13-17"))) %>%
     group_by(season, week_group) %>%
-    summarise(group_average = mean(total_points_mfl)) %>%
+    summarise(group_average = mean(total_points)) %>%
     select(season, week_group, group_average) %>%
     spread(season, group_average) %>%
     gt() %>%
@@ -398,10 +693,10 @@ stats_weekly %>%
 stats_weekly %>%
     filter(season == max(season)) %>%
     group_by(week, position) %>%
-    mutate(week_rank = rank(-total_points_mfl)) %>%
+    mutate(week_rank = rank(-total_points)) %>%
     ungroup() %>%
     filter(player_display_name == "Dak Prescott") %>%
-    select(week, total_points_mfl, week_rank) %>%
+    select(week, total_points, week_rank) %>%
     arrange(week) %>%
     gt() %>%
     gt_theme_538() %>%
@@ -414,11 +709,11 @@ stats_weekly %>%
     ) %>%
     cols_label(
         week = "Week",
-        total_points_mfl = "Points",
+        total_points = "Points",
         week_rank = "Position Rank"
     ) %>%
     fmt_number(
-        columns = total_points_mfl,
+        columns = total_points,
         decimals = 1
     )
 
@@ -486,7 +781,7 @@ stats_vorp_final %>%
               fontface = "bold",
               size = 4,
               nudge_y = 8) +
-    scale_x_discrete(breaks = player$player_display_name) +
+    # scale_x_discrete(breaks = player$player_display_name) +
     labs(title = "Value Over Replacement Player") +
     xlab("") +
     ylab("VORP") + 
@@ -520,7 +815,7 @@ stats_vorp_final %>%
 # Stats by Season
 stats_vorp_final %>%
     filter(player_display_name == player$player_display_name) %>%
-    select(season,recent_team,games,total_points_mfl,average_points_mfl,vorp,pos_rank,
+    select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
            passing_yards,passing_tds,passing_epa,rushing_yards,rushing_tds) %>%
     arrange(season) %>%
     gt() %>%
@@ -538,8 +833,8 @@ stats_vorp_final %>%
         season = "Season",
         recent_team = "Team",
         games = "Games",
-        total_points_mfl = "Total Points",
-        average_points_mfl = "Average Points",
+        total_points = "Total Points",
+        average_points = "Average Points",
         vorp = "VORP",
         pos_rank = "Position Rank",
         passing_yards = "Pass Yards",
@@ -549,7 +844,7 @@ stats_vorp_final %>%
         rushing_tds = "Rush TDs"
     ) %>%
     fmt_number(
-        columns = c(total_points_mfl,average_points_mfl,vorp,passing_epa),
+        columns = c(total_points,average_points,vorp,passing_epa),
         decimals = 1
     )
 
@@ -558,7 +853,7 @@ average_pts <- stats_weekly %>%
     filter(position == player$position & season == max(season)) %>%
     arrange(week) %>%
     group_by(player_display_name) %>%
-    mutate(avg_pts = cummean(total_points_mfl)) %>%
+    mutate(avg_pts = cummean(total_points)) %>%
     ungroup() %>%
     group_by(week) %>%
     mutate(pos_rank = round(rank(-avg_pts, ties.method = "first"))) %>%
