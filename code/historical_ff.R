@@ -593,9 +593,8 @@ wr_hvt <- pbp_hvt_wr %>%
                  names_to = "hvt_type", values_to = "touch_pct") %>%
     filter(total_pot_touches >= 75)
 
-
 wr_hvt %>%
-    ggplot(aes(touch_pct, reorder(player_name, touch_pct))) +
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = adot)) +
     geom_col() +
     scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
     labs(x = "Percent of plays",
@@ -605,8 +604,6 @@ wr_hvt %>%
     theme(axis.title.y = element_blank(),
           axis.ticks.y = element_blank(),
           axis.title.x = element_blank())
-
-
 
 wr_hvt %>%
     ggplot(aes(hvt_pot, reorder(player_name, hvt_pot), fill = adot)) +
