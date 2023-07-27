@@ -22,7 +22,7 @@ library(fuzzyjoin)
 # DBI::dbWriteTable(nfl_db, "player_names", players)
 # DBI::dbDisconnect(nfl_db)
 
-nfl_db <- DBI::dbConnect(RSQLite::SQLite(), "../NFLdb/nfl_db_names.sqlite")
+nfl_db <- DBI::dbConnect(RSQLite::SQLite(), "../nfl_sql_db/nfl_pbp_db")
 player_names <- DBI::dbGetQuery(nfl_db, 'SELECT * FROM player_names')
 DBI::dbDisconnect(nfl_db)
 

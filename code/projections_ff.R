@@ -7,7 +7,7 @@ library(ggrepel)
 library(googlesheets4)
 
 
-nfl_db <- DBI::dbConnect(RSQLite::SQLite(), "../NFLdb/nfl_db_names.sqlite")
+nfl_db <- DBI::dbConnect(RSQLite::SQLite(), "../nfl_sql_db/nfl_db_names")
 player_names <- DBI::dbGetQuery(nfl_db, 'SELECT * FROM player_names')
 DBI::dbDisconnect(nfl_db)
 
