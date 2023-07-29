@@ -30,3 +30,18 @@ for (yr in years) {
 }
 
 
+# Step 1: Compute string distances between names in "adp" and "stats_yearly"
+dist_matrix <- stringdist::stringdistmatrix(adp$Name, stats_yearly$player_display_name)
+
+# Step 2: Find the best matches for each name in "adp"
+best_matches <- apply(dist_matrix, 1, which.min)
+
+# Step 3: Create a new data frame with corrected names
+corrected_names_df <- data.frame(Name = adp$Name,
+                                 corrected_name = stats_yearly$player_display_name[best_matches],
+                                 stringsAsFactors = FALSE)
+
+# Step 4: Update the "adp" data frame with corrected names
+adp$Name <- corrected_names_df$corrected_name
+
+
