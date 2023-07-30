@@ -194,7 +194,7 @@ for (i in unique(vorp_yearly$season)) {
 stats_yearly <- stats_vorp_final
 
 
-# VORP calculations
+# Adjusted points
 vorp_yearly <- stats_yearly %>%
     filter(season %in% c(2017:2022))
 
@@ -974,20 +974,38 @@ stats_yearly %>%
 
 # Position and strategy analysis ----
 
-# Points by total touches
+# Points by touches
 stats_yearly %>%
-    filter(season == 2022 & position %in% c("RB","WR") & touches > 50) %>%
-    select(player_display_name, position, total_points, touches, points_per_touch) %>%
+    filter(season == 2022 & position == "WR" & touches >= 50) %>%
+    select(player_display_name, position, total_points, average_points, touches, points_per_touch) %>%
+    arrange(desc(touches)) %>%
+    head(10) %>%
+    kable()
+
+stats_yearly %>%
+    filter(season == 2022 & position == "WR" & touches >= 50) %>%
+    select(player_display_name, position, total_points, average_points, touches, points_per_touch) %>%
     arrange(desc(points_per_touch)) %>%
     head(10) %>%
     kable()
 
 stats_yearly %>%
-    filter(season == 2022 & position == "RB" & touches > 100) %>%
-    select(player_display_name, position, total_points, touches, points_per_touch) %>%
+    filter(season == 2022 & position == "RB" & touches >= 150) %>%
+    select(player_display_name, position, total_points, average_points, touches, points_per_touch) %>%
+    arrange(desc(touches)) %>%
+    head(10) %>%
+    kable()
+
+stats_yearly %>%
+    filter(season == 2022 & position == "RB" & touches >= 150) %>%
+    select(player_display_name, position, total_points, average_points, touches, points_per_touch) %>%
     arrange(desc(points_per_touch)) %>%
     head(10) %>%
     kable()
+
+
+
+
 
 
 
@@ -1019,8 +1037,7 @@ hvt_rb <- pbp_fantasy %>%
     filter(rusher_position == "RB" | receiver_position == "RB") %>%
     mutate(player_name = if_else(is.na(rusher_player_name), receiver_player_name, rusher_player_name),
            player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
-    group_by(player_name,
-             player_id) %>%
+    group_by(player_name, player_id) %>%
     summarize(rush_attempts = sum(rush_attempt),
               ten_zone_rushes = sum(ten_zone_rush),
               receptions = sum(complete_pass),
@@ -1037,11 +1054,11 @@ hvt_rb <- pbp_fantasy %>%
 
 hvt_rb %>%
     filter(hvt_type == "hvt_pct") %>%
-    ggplot(aes(touch_pct, reorder(player_name, touch_pct))) +
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = total_touches)) +
     geom_col() +
     scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
     labs(x = "Percent of plays",
-         fill = "Distance from goal line",
+         fill = "Total Touches",
          title = "Visualization of TRAP backs, displaying RB high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
          caption = "Figure: @MambaMetrics | Data: @nflfastR") +
     theme(axis.title.y = element_blank(),
@@ -1054,7 +1071,7 @@ hvt_rb %>%
     geom_bar(position="stack", stat="identity") +
     scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
     labs(x = "Percent of plays",
-         fill = "Distance from goal line",
+         fill = "Play Type",
          title = "Visualization of TRAP backs, displaying RB high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
          caption = "Figure: @SamHoppen | Data: @nflfastR") +
     theme(axis.title.y = element_blank(),
@@ -1129,7 +1146,7 @@ hvt_wr %>%
 
 
 
-
+# ADP analysis ----
 
 
 vorp_adp <- stats_vorp_final %>%
