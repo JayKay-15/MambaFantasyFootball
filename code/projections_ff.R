@@ -3,8 +3,8 @@
 library(tidyverse)
 library(ffanalytics)
 library(DescTools)
-library(ggrepel)
-library(googlesheets4)
+# library(ggrepel)
+# library(googlesheets4)
 
 
 nfl_db <- DBI::dbConnect(RSQLite::SQLite(), "../nfl_sql_db/nfl_db_names")
@@ -27,8 +27,8 @@ rush_tds_adj <- 6
 rec_yds_adj <- 0.1
 rec_tds_adj <- 6
 rec_adj <- 1
-int_adj <- 0
-fum_adj <- 0
+int_adj <- -1
+fum_adj <- -1
 
 # Processing QB data
 proj_qb <- my_scrape$QB %>%
@@ -83,25 +83,31 @@ proj_te <- my_scrape$TE %>%
 
 # Combining and filtering the data
 proj_all <- bind_rows(proj_qb, proj_rb, proj_wr, proj_te) %>%
-    filter(pos != "FB" & count >= 3) %>%
+    filter(pos != "FB" & count >= 3 & total_points != 0) %>%
     select(-count) %>%
-    fuzzyjoin::stringdist_join(player_names, by = "player",
-                    mode ='left',
-                    method = "jw",
-                    max_dist = 0.09, 
-                    distance_col = 'dist') %>%
-    mutate(
-        player_display_name = if_else(is.na(player_display_name), 
-                                         player.x, player_display_name),
-        player_display_name = case_when(
-            player.x %in% c("Bijan Robinson") ~ "Bijan Robinson", TRUE ~ player_display_name),
-        pos = factor(pos, levels = c("QB","RB","WR","TE"))
-        ) %>%
-    group_by(player.x) %>%
-    slice_min(order_by = dist, n = 1) %>%
-    ungroup() %>%
-    select(data_src, player_display_name, team, pos, total_points, average_points) %>%
-    rename("player" = "player_display_name")
+    select(data_src, player, team, pos, total_points, average_points)
+
+
+# proj_all <- bind_rows(proj_qb, proj_rb, proj_wr, proj_te) %>%
+#     filter(pos != "FB" & count >= 3) %>%
+#     select(-count) %>%
+#     fuzzyjoin::stringdist_join(player_names, by = "player",
+#                     mode ='left',
+#                     method = "jw",
+#                     max_dist = 0.09, 
+#                     distance_col = 'dist') %>%
+#     mutate(
+#         player_display_name = if_else(is.na(player_display_name), 
+#                                          player.x, player_display_name),
+#         player_display_name = case_when(
+#             player.x %in% c("Bijan Robinson") ~ "Bijan Robinson", TRUE ~ player_display_name),
+#         pos = factor(pos, levels = c("QB","RB","WR","TE"))
+#         ) %>%
+#     group_by(player.x) %>%
+#     slice_min(order_by = dist, n = 1) %>%
+#     ungroup() %>%
+#     select(data_src, player_display_name, team, pos, total_points, average_points) %>%
+#     rename("player" = "player_display_name")
 
 ### PPR Super Flex ----
 # Calculating robust average
@@ -122,10 +128,16 @@ proj_all_robust_avg <- proj_all %>%
     select(player, pos, est_total, lo_total, hi_total, est_avg, lo_avg, hi_avg, standard_dev, range) %>%
     arrange(desc(est_total))
 
+
+
+
+
+
+
 # Filtering top 12 each position and  next top 12 players
 proj_filtered <- proj_all_robust_avg %>%
     group_by(pos) %>%
-    slice(19:n()) %>%
+    slice(13:n()) %>%
     ungroup() %>%
     arrange(desc(est_total)) %>%
     slice(13:n())
