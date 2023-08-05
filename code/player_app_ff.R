@@ -10,24 +10,6 @@ stats_weekly <- stats_weekly %>% arrange(desc(season), player_display_name)
 # Server ----
 server <- function(input, output, session) {
     
-    # Reactive function to get player choices based on selected position
-    # available_players <- reactive({
-    #     stats_yearly %>%
-    #         filter(position == input$position) %>%
-    #         pull(player_display_name) %>%
-    #         unique()
-    # })
-    
-    # # Update player choices based on the selected position for both tabs
-    # observeEvent(input$position, {
-    #     updateSelectInput(session, "player1", choices = available_players(),
-    #                       selected = available_players()[1])
-    #     updateSelectInput(session, "player2", choices = available_players(),
-    #                       selected = available_players()[1])
-    # })
-
-
-
     # Position filter sync
     selected_position <- reactiveVal("QB")
     
@@ -73,6 +55,7 @@ server <- function(input, output, session) {
         updateSelectInput(session, "year", choices = seasons, selected = max(seasons))
     })
     
+    # Reactive player
     player <- reactive({
         stats_yearly %>%
             filter(player_display_name == selected_player() & season == input$year) %>%
