@@ -716,7 +716,7 @@ hvt_wr %>%
 
 # Select player
 player <- stats_yearly %>%
-    filter(player_display_name == "CeeDee Lamb" & season == max(season)) %>%
+    filter(player_display_name == "Tony Pollard" & season == max(season)) %>%
     select(player_display_name, position, recent_team) %>%
     left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
 
@@ -1029,122 +1029,6 @@ if (selected_player_position == "QB") {
 }
 
 
-# # Stats by Season - QB
-# stats_yearly %>%
-#     filter(player_display_name == player$player_display_name) %>%
-#     select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
-#            passing_yards,passing_tds,passing_epa,rushing_yards,rushing_tds) %>%
-#     arrange(season) %>%
-#     gt() %>%
-#     gt_theme_538() %>%
-#     tab_options(
-#         heading.align = "center",
-#     ) %>%
-#     tab_header(
-#         title = "Season Stats"
-#     ) %>%
-#     cols_align(
-#         "center"
-#     ) %>%
-#     cols_label(
-#         season = "Season",
-#         recent_team = "Team",
-#         games = "Games",
-#         total_points = "Total Points",
-#         average_points = "Average Points",
-#         vorp = "VORP",
-#         pos_rank = "Position Rank",
-#         passing_yards = "Pass Yards",
-#         passing_tds = "Pass TDs",
-#         passing_epa = "Pass EPA",
-#         rushing_yards = "Rush Yards",
-#         rushing_tds = "Rush TDs"
-#     ) %>%
-#     fmt_number(
-#         columns = c(total_points,average_points,vorp,passing_epa),
-#         decimals = 1
-#     )
-# 
-# # Stats by Season - RB
-# stats_yearly %>%
-#     filter(player_display_name == player$player_display_name) %>%
-#     select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
-#            rushing_yards,rushing_tds,rushing_epa,
-#            receptions,receiving_yards,receiving_tds,receiving_epa) %>%
-#     arrange(season) %>%
-#     gt() %>%
-#     gt_theme_538() %>%
-#     tab_options(
-#         heading.align = "center",
-#     ) %>%
-#     tab_header(
-#         title = "Season Stats"
-#     ) %>%
-#     cols_align(
-#         "center"
-#     ) %>%
-#     cols_label(
-#         season = "Season",
-#         recent_team = "Team",
-#         games = "Games",
-#         total_points = "Total Points",
-#         average_points = "Average Points",
-#         vorp = "VORP",
-#         pos_rank = "Position Rank",
-#         rushing_yards = "Rush Yards",
-#         rushing_tds = "Rush TDs",
-#         rushing_epa = "Rush EPA",
-#         receptions = "Receptions",
-#         receiving_yards = "Receiving Yards",
-#         receiving_tds = "Receiving TDs",
-#         receiving_epa = "Receiving EPA"
-#     ) %>%
-#     fmt_number(
-#         columns = c(total_points,average_points,vorp,rushing_epa,receiving_epa),
-#         decimals = 1
-#     )
-# 
-# # Stats by Season - WR/TE
-# stats_yearly %>%
-#     filter(player_display_name == player$player_display_name) %>%
-#     select(season, recent_team, games, total_points, average_points, vorp, pos_rank,
-#            touches, receptions, receiving_yards, receiving_tds, receiving_epa,
-#            rushing_yards, rushing_tds, rushing_epa) %>%
-#     arrange(season) %>%
-#     gt() %>%
-#     gt_theme_538() %>%
-#     tab_options(
-#         heading.align = "center",
-#     ) %>%
-#     tab_header(
-#         title = "All Stats by Season"
-#     ) %>%
-#     cols_align(
-#         "center"
-#     ) %>%
-#     cols_label(
-#         season = "Season",
-#         recent_team = "Team",
-#         games = "Games",
-#         total_points = "Total Points",
-#         average_points = "Average Points",
-#         vorp = "VORP",
-#         pos_rank = "Position Rank",
-#         touches = "Touches",
-#         receptions = "Receptions",
-#         receiving_yards = "Receiving Yards",
-#         receiving_tds = "Receiving TDs",
-#         receiving_epa = "Receiving EPA",
-#         rushing_yards = "Rush Yards",
-#         rushing_tds = "Rush TDs",
-#         rushing_epa = "Rush EPA"
-#     ) %>%
-#     fmt_number(
-#         columns = c(total_points, average_points, vorp, receiving_epa, rushing_epa),
-#         decimals = 1
-#     )
-
-
 # Rolling average table
 all_combinations <- expand.grid(player_display_name = unique(stats_weekly$player_display_name),
                                 position = player$position,
@@ -1327,6 +1211,174 @@ stats_yearly %>%
     )
 
     
+
+
+
+
+
+# HVT RB
+# https://www.opensourcefootball.com/posts/2020-08-25-open-source-fantasy-football-visualizing-trap-backs/
+roster_pos <- roster %>%
+    select(gsis_id,position,full_name) %>%
+    filter(position %in% c("QB","RB","WR","TE")) %>%
+    distinct()
+
+hvt_rb <- pbp_fantasy %>%
+    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
+    left_join(roster_pos, by = c("receiver_id" = "gsis_id"), na_matches="never") %>%
+    rename(receiver_full_name = full_name,
+           receiver_position = position) %>%
+    left_join(roster_pos, by = c("rusher_id" = "gsis_id"), na_matches="never") %>%
+    rename(rusher_full_name = full_name,
+           rusher_position = position) %>%
+    mutate(ten_zone_rush = if_else(yardline_100 <= 10 & rush_attempt == 1, 1, 0),
+           ten_zone_pass = if_else(yardline_100 <= 10 & pass_attempt == 1 & sack == 0, 1, 0),
+           ten_zone_rec = if_else(yardline_100 <= 10 & complete_pass == 1, 1, 0),
+           field_touch = case_when(
+               yardline_100 <= 100 & yardline_100 >= 81 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_100_81",
+               yardline_100 <= 80 & yardline_100 >= 61 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_80_61",
+               yardline_100 <= 60 & yardline_100 >= 41 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_60_41",
+               yardline_100 <= 40 & yardline_100 >= 21 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_40_21",
+               yardline_100 <= 20 & yardline_100 >= 0 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_20_1",
+               TRUE ~ "other")) %>%
+    filter(rusher_position == "RB" | receiver_position == "RB") %>%
+    mutate(player_name = if_else(is.na(rusher_full_name), receiver_full_name, rusher_full_name),
+           player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
+    group_by(player_name, player_id) %>%
+    summarize(rush_attempts = sum(rush_attempt),
+              ten_zone_rushes = sum(ten_zone_rush),
+              receptions = sum(complete_pass),
+              total_touches = rush_attempts + receptions,
+              hvts = receptions + ten_zone_rushes,
+              non_hvts = total_touches - hvts,
+              hvt_pct = hvts / total_touches,
+              non_hvt_pct = non_hvts / total_touches,
+              hvt_rec = receptions / total_touches,
+              hvt_rush = ten_zone_rushes / total_touches) %>%
+    pivot_longer(cols = c(hvt_pct, non_hvt_pct, hvt_rec, hvt_rush),
+                 names_to = "hvt_type", values_to = "touch_pct") %>%
+    filter(total_touches >= 150)
+
+
+
+hvt_rb %>%
+    filter(
+        hvt_type == "hvt_pct" &
+            (total_touches >= 150 | player_name == player$player_display_name)
+    ) %>%
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct),
+               fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
+    geom_col() +
+    scale_fill_manual(values = c("Selected" = player$team_color, "Not Selected" = player$team_color2),
+                      guide = "none") + 
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(x = "Percent of plays",
+         fill = "Total Touches",
+         title = "Visualization of TRAP backs, displaying RB high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+
+hvt_rb %>%
+    filter(hvt_type %in% c("hvt_rush", "hvt_rec")) %>%
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = hvt_type)) +
+    geom_bar(stat = "identity", alpha = 0.3) +
+    geom_bar(
+        data = subset(hvt_rb, player_name == player$player_display_name &
+                          hvt_type %in% c("hvt_rush", "hvt_rec")),
+        stat = "identity"
+    ) +
+    scale_fill_manual(values = c("hvt_rush" = player$team_color, "hvt_rec" = player$team_color2)) + 
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(x = "Percent of plays",
+         fill = "Play Type",
+         title = "Visualization of TRAP backs, displaying RB high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+         caption = "Figure: @SamHoppen | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+
+
+
+# HVT WR
+# https://www.opensourcefootball.com/posts/2020-08-25-open-source-fantasy-football-visualizing-trap-backs/
+
+hvt_wr <- pbp_fantasy %>%
+    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
+    left_join(roster_pos, by = c("receiver_id" = "gsis_id"), na_matches="never") %>%
+    rename(receiver_full_name = full_name,
+           receiver_position = position) %>%
+    left_join(roster_pos, by = c("rusher_id" = "gsis_id"), na_matches="never") %>%
+    rename(rusher_full_name = full_name,
+           rusher_position = position) %>%
+    mutate(ten_zone_rush = if_else(yardline_100 <= 10 & rush_attempt == 1, 1, 0),
+           ten_zone_rec = if_else(yardline_100 <= 10 & complete_pass == 1, 1, 0),
+           tgt = if_else(complete_pass == 1 | incomplete_pass == 1, 1, 0),
+           ten_zone_tgt = if_else(yardline_100 <= 10 & (complete_pass == 1 | incomplete_pass == 1), 1, 0),
+           field_touch = case_when(
+               yardline_100 <= 100 & yardline_100 >= 81 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_100_81",
+               yardline_100 <= 80 & yardline_100 >= 61 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_80_61",
+               yardline_100 <= 60 & yardline_100 >= 41 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_60_41",
+               yardline_100 <= 40 & yardline_100 >= 21 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_40_21",
+               yardline_100 <= 20 & yardline_100 >= 0 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_20_1",
+               TRUE ~ "other")) %>%
+    filter(rusher_position == "WR" | receiver_position == "WR") %>%
+    mutate(player_name = if_else(is.na(rusher_player_name), receiver_player_name, rusher_player_name),
+           player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
+    group_by(player_name,
+             player_id) %>%
+    summarize(rush_attempts = sum(rush_attempt),
+              ten_zone_rushes = sum(ten_zone_rush),
+              tgt = sum(tgt),
+              ten_zone_tgt = sum(ten_zone_tgt),
+              adot = mean(air_yards, na.rm = T),
+              total_pot_touches = sum(rush_attempt) + sum(tgt),
+              hvt_pot = ten_zone_tgt + ten_zone_rushes,
+              hvt_pot_pct = hvt_pot / total_pot_touches) %>%
+    pivot_longer(cols = c(hvt_pot_pct),
+                 names_to = "hvt_type", values_to = "touch_pct") %>%
+    filter(total_pot_touches >= 75)
+
+hvt_wr %>%
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = adot)) +
+    geom_col() +
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(x = "Percent of plays",
+         fill = "aDot",
+         title = "Visualization of TRAP receivers, displaying WR high value touches (carries and targets inside the 10)\nas a % of total touches (min 100 touches)",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+hvt_wr %>%
+    ggplot(aes(hvt_pot, reorder(player_name, hvt_pot), fill = adot)) +
+    geom_col() +
+    scale_x_continuous() +
+    labs(x = "Percent of plays",
+         fill = "aDot",
+         title = "Visualization of TRAP receivers, displaying WR high value opportunities (carries and targets inside the 10)\nmin 100 touches",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
