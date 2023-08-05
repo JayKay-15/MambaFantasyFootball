@@ -909,121 +909,239 @@ stats_yearly %>%
     coord_flip() +
     theme_bw()
 
+# Stats by season
+if (selected_player_position == "QB") {
+    stats_yearly %>%
+        filter(player_display_name == player$player_display_name) %>%
+        select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
+               passing_yards,passing_tds,passing_epa,rushing_yards,rushing_tds) %>%
+        arrange(season) %>%
+        gt() %>%
+        gt_theme_538() %>%
+        tab_options(
+            heading.align = "center",
+        ) %>%
+        tab_header(
+            title = "Season Stats"
+        ) %>%
+        cols_align(
+            "center"
+        ) %>%
+        cols_label(
+            season = "Season",
+            recent_team = "Team",
+            games = "Games",
+            total_points = "Total Points",
+            average_points = "Average Points",
+            vorp = "VORP",
+            pos_rank = "Position Rank",
+            passing_yards = "Pass Yards",
+            passing_tds = "Pass TDs",
+            passing_epa = "Pass EPA",
+            rushing_yards = "Rush Yards",
+            rushing_tds = "Rush TDs"
+        ) %>%
+        fmt_number(
+            columns = c(total_points,average_points,vorp,passing_epa),
+            decimals = 1
+        )
+} else if (selected_player_position == "RB") {
+    stats_yearly %>%
+        filter(player_display_name == player$player_display_name) %>%
+        select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
+               rushing_yards,rushing_tds,rushing_epa,
+               receptions,receiving_yards,receiving_tds,receiving_epa) %>%
+        arrange(season) %>%
+        gt() %>%
+        gt_theme_538() %>%
+        tab_options(
+            heading.align = "center",
+        ) %>%
+        tab_header(
+            title = "Season Stats"
+        ) %>%
+        cols_align(
+            "center"
+        ) %>%
+        cols_label(
+            season = "Season",
+            recent_team = "Team",
+            games = "Games",
+            total_points = "Total Points",
+            average_points = "Average Points",
+            vorp = "VORP",
+            pos_rank = "Position Rank",
+            rushing_yards = "Rush Yards",
+            rushing_tds = "Rush TDs",
+            rushing_epa = "Rush EPA",
+            receptions = "Receptions",
+            receiving_yards = "Receiving Yards",
+            receiving_tds = "Receiving TDs",
+            receiving_epa = "Receiving EPA"
+        ) %>%
+        fmt_number(
+            columns = c(total_points,average_points,vorp,rushing_epa,receiving_epa),
+            decimals = 1
+        )
+} else if (selected_player_position %in% c("WR", "TE")) {
+    stats_yearly %>%
+        filter(player_display_name == player$player_display_name) %>%
+        select(season, recent_team, games, total_points, average_points, vorp, pos_rank,
+               touches, receptions, receiving_yards, receiving_tds, receiving_epa,
+               rushing_yards, rushing_tds, rushing_epa) %>%
+        arrange(season) %>%
+        gt() %>%
+        gt_theme_538() %>%
+        tab_options(
+            heading.align = "center",
+        ) %>%
+        tab_header(
+            title = "All Stats by Season"
+        ) %>%
+        cols_align(
+            "center"
+        ) %>%
+        cols_label(
+            season = "Season",
+            recent_team = "Team",
+            games = "Games",
+            total_points = "Total Points",
+            average_points = "Average Points",
+            vorp = "VORP",
+            pos_rank = "Position Rank",
+            touches = "Touches",
+            receptions = "Receptions",
+            receiving_yards = "Receiving Yards",
+            receiving_tds = "Receiving TDs",
+            receiving_epa = "Receiving EPA",
+            rushing_yards = "Rush Yards",
+            rushing_tds = "Rush TDs",
+            rushing_epa = "Rush EPA"
+        ) %>%
+        fmt_number(
+            columns = c(total_points, average_points, vorp, receiving_epa, rushing_epa),
+            decimals = 1
+        )
+} else {
+    # Handle the case when the player's position is not recognized
+    cat("Selected player's position is not recognized.")
+}
 
-# Stats by Season - QB
-stats_yearly %>%
-    filter(player_display_name == player$player_display_name) %>%
-    select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
-           passing_yards,passing_tds,passing_epa,rushing_yards,rushing_tds) %>%
-    arrange(season) %>%
-    gt() %>%
-    gt_theme_538() %>%
-    tab_options(
-        heading.align = "center",
-    ) %>%
-    tab_header(
-        title = "Season Stats"
-    ) %>%
-    cols_align(
-        "center"
-    ) %>%
-    cols_label(
-        season = "Season",
-        recent_team = "Team",
-        games = "Games",
-        total_points = "Total Points",
-        average_points = "Average Points",
-        vorp = "VORP",
-        pos_rank = "Position Rank",
-        passing_yards = "Pass Yards",
-        passing_tds = "Pass TDs",
-        passing_epa = "Pass EPA",
-        rushing_yards = "Rush Yards",
-        rushing_tds = "Rush TDs"
-    ) %>%
-    fmt_number(
-        columns = c(total_points,average_points,vorp,passing_epa),
-        decimals = 1
-    )
 
-# Stats by Season - RB
-stats_yearly %>%
-    filter(player_display_name == player$player_display_name) %>%
-    select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
-           rushing_yards,rushing_tds,rushing_epa,
-           receptions,receiving_yards,receiving_tds,receiving_epa) %>%
-    arrange(season) %>%
-    gt() %>%
-    gt_theme_538() %>%
-    tab_options(
-        heading.align = "center",
-    ) %>%
-    tab_header(
-        title = "Season Stats"
-    ) %>%
-    cols_align(
-        "center"
-    ) %>%
-    cols_label(
-        season = "Season",
-        recent_team = "Team",
-        games = "Games",
-        total_points = "Total Points",
-        average_points = "Average Points",
-        vorp = "VORP",
-        pos_rank = "Position Rank",
-        rushing_yards = "Rush Yards",
-        rushing_tds = "Rush TDs",
-        rushing_epa = "Rush EPA",
-        receptions = "Receptions",
-        receiving_yards = "Receiving Yards",
-        receiving_tds = "Receiving TDs",
-        receiving_epa = "Receiving EPA"
-    ) %>%
-    fmt_number(
-        columns = c(total_points,average_points,vorp,rushing_epa,receiving_epa),
-        decimals = 1
-    )
-
-# Stats by Season - WR/TE
-stats_yearly %>%
-    filter(player_display_name == player$player_display_name) %>%
-    select(season, recent_team, games, total_points, average_points, vorp, pos_rank,
-           touches, receptions, receiving_yards, receiving_tds, receiving_epa,
-           rushing_yards, rushing_tds, rushing_epa) %>%
-    arrange(season) %>%
-    gt() %>%
-    gt_theme_538() %>%
-    tab_options(
-        heading.align = "center",
-    ) %>%
-    tab_header(
-        title = "All Stats by Season"
-    ) %>%
-    cols_align(
-        "center"
-    ) %>%
-    cols_label(
-        season = "Season",
-        recent_team = "Team",
-        games = "Games",
-        total_points = "Total Points",
-        average_points = "Average Points",
-        vorp = "VORP",
-        pos_rank = "Position Rank",
-        touches = "Touches",
-        receptions = "Receptions",
-        receiving_yards = "Receiving Yards",
-        receiving_tds = "Receiving TDs",
-        receiving_epa = "Receiving EPA",
-        rushing_yards = "Rush Yards",
-        rushing_tds = "Rush TDs",
-        rushing_epa = "Rush EPA"
-    ) %>%
-    fmt_number(
-        columns = c(total_points, average_points, vorp, receiving_epa, rushing_epa),
-        decimals = 1
-    )
+# # Stats by Season - QB
+# stats_yearly %>%
+#     filter(player_display_name == player$player_display_name) %>%
+#     select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
+#            passing_yards,passing_tds,passing_epa,rushing_yards,rushing_tds) %>%
+#     arrange(season) %>%
+#     gt() %>%
+#     gt_theme_538() %>%
+#     tab_options(
+#         heading.align = "center",
+#     ) %>%
+#     tab_header(
+#         title = "Season Stats"
+#     ) %>%
+#     cols_align(
+#         "center"
+#     ) %>%
+#     cols_label(
+#         season = "Season",
+#         recent_team = "Team",
+#         games = "Games",
+#         total_points = "Total Points",
+#         average_points = "Average Points",
+#         vorp = "VORP",
+#         pos_rank = "Position Rank",
+#         passing_yards = "Pass Yards",
+#         passing_tds = "Pass TDs",
+#         passing_epa = "Pass EPA",
+#         rushing_yards = "Rush Yards",
+#         rushing_tds = "Rush TDs"
+#     ) %>%
+#     fmt_number(
+#         columns = c(total_points,average_points,vorp,passing_epa),
+#         decimals = 1
+#     )
+# 
+# # Stats by Season - RB
+# stats_yearly %>%
+#     filter(player_display_name == player$player_display_name) %>%
+#     select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
+#            rushing_yards,rushing_tds,rushing_epa,
+#            receptions,receiving_yards,receiving_tds,receiving_epa) %>%
+#     arrange(season) %>%
+#     gt() %>%
+#     gt_theme_538() %>%
+#     tab_options(
+#         heading.align = "center",
+#     ) %>%
+#     tab_header(
+#         title = "Season Stats"
+#     ) %>%
+#     cols_align(
+#         "center"
+#     ) %>%
+#     cols_label(
+#         season = "Season",
+#         recent_team = "Team",
+#         games = "Games",
+#         total_points = "Total Points",
+#         average_points = "Average Points",
+#         vorp = "VORP",
+#         pos_rank = "Position Rank",
+#         rushing_yards = "Rush Yards",
+#         rushing_tds = "Rush TDs",
+#         rushing_epa = "Rush EPA",
+#         receptions = "Receptions",
+#         receiving_yards = "Receiving Yards",
+#         receiving_tds = "Receiving TDs",
+#         receiving_epa = "Receiving EPA"
+#     ) %>%
+#     fmt_number(
+#         columns = c(total_points,average_points,vorp,rushing_epa,receiving_epa),
+#         decimals = 1
+#     )
+# 
+# # Stats by Season - WR/TE
+# stats_yearly %>%
+#     filter(player_display_name == player$player_display_name) %>%
+#     select(season, recent_team, games, total_points, average_points, vorp, pos_rank,
+#            touches, receptions, receiving_yards, receiving_tds, receiving_epa,
+#            rushing_yards, rushing_tds, rushing_epa) %>%
+#     arrange(season) %>%
+#     gt() %>%
+#     gt_theme_538() %>%
+#     tab_options(
+#         heading.align = "center",
+#     ) %>%
+#     tab_header(
+#         title = "All Stats by Season"
+#     ) %>%
+#     cols_align(
+#         "center"
+#     ) %>%
+#     cols_label(
+#         season = "Season",
+#         recent_team = "Team",
+#         games = "Games",
+#         total_points = "Total Points",
+#         average_points = "Average Points",
+#         vorp = "VORP",
+#         pos_rank = "Position Rank",
+#         touches = "Touches",
+#         receptions = "Receptions",
+#         receiving_yards = "Receiving Yards",
+#         receiving_tds = "Receiving TDs",
+#         receiving_epa = "Receiving EPA",
+#         rushing_yards = "Rush Yards",
+#         rushing_tds = "Rush TDs",
+#         rushing_epa = "Rush EPA"
+#     ) %>%
+#     fmt_number(
+#         columns = c(total_points, average_points, vorp, receiving_epa, rushing_epa),
+#         decimals = 1
+#     )
 
 
 # Rolling average table
