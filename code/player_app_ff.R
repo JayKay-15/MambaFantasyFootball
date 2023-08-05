@@ -10,6 +10,38 @@ stats_weekly <- stats_weekly %>% arrange(desc(season), player_display_name)
 # Server ----
 server <- function(input, output, session) {
     
+    # Reactive function to get player choices based on selected position
+    # available_players <- reactive({
+    #     stats_yearly %>%
+    #         filter(position == input$position) %>%
+    #         pull(player_display_name) %>%
+    #         unique()
+    # })
+    
+    # # Update player choices based on the selected position for both tabs
+    # observeEvent(input$position, {
+    #     updateSelectInput(session, "player1", choices = available_players(),
+    #                       selected = available_players()[1])
+    #     updateSelectInput(session, "player2", choices = available_players(),
+    #                       selected = available_players()[1])
+    # })
+
+
+
+    # Position filter sync
+    selected_position <- reactiveVal("QB")
+    
+    observeEvent(input$position1, {
+        updateSelectInput(session, "position2", selected=input$position1)
+        selected_position(input$position1)
+    })
+    observeEvent(input$position2, {
+        updateSelectInput(session, "position1", selected=input$position2)
+        selected_position(input$position2)
+    })
+    
+    
+    # Player filter sync
     selected_player <- reactiveVal(stats_yearly$player_display_name[1])
     
     observeEvent(input$player1, {
@@ -20,6 +52,17 @@ server <- function(input, output, session) {
         updateSelectInput(session, "player1", selected=input$player2)
         selected_player(input$player2)
     })
+    
+    # Update the available players based on the selected position
+    observeEvent(selected_position(), {
+        players <- stats_yearly %>%
+            filter(position == selected_position()) %>%
+            pull(player_display_name) %>%
+            unique()
+        updateSelectInput(session, "player1", choices = players, selected = players[1])
+        updateSelectInput(session, "player2", choices = players, selected = players[1])
+    })
+
     
     # Update the available seasons based on the selected player
     observeEvent(selected_player(), {
@@ -37,48 +80,7 @@ server <- function(input, output, session) {
             left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
     })
 
-    
-    # 
-    # output$selectInput1 <- renderUI({
-    #     selectInput(inputId = "id1", 
-    #                 label = "select", 
-    #                 choices = c("a","b","c"), 
-    #                 selected = player())
-    # })
-    # output$selectInput2 <- renderUI({
-    #     selectInput(inputId = "id2", 
-    #                 label = "select", 
-    #                 choices = c("a","b","c"), 
-    #                 selected = player())
-    # })
-    # 
-    # observeEvent(input$id2,{
-    #     selected_player(input$id2)
-    # })
-    # 
-    # observeEvent(input$id1,{
-    #     selected_player(input$id1)
-    # })
 
-    # # Update the available seasons based on the selected player
-    # observeEvent(input$player, {
-    #     seasons <- stats_yearly %>%
-    #         filter(player_display_name == input$player) %>%
-    #         pull(season) %>%
-    #         unique()
-    #     updateSelectInput(session, "year", choices = seasons, selected = max(seasons))
-    # })
-    # 
-    # player <- reactive({
-    #     stats_yearly %>%
-    #         filter(player_display_name == input$player & season == input$year) %>%
-    #         select(player_display_name, position, recent_team) %>%
-    #         left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
-    # })
-    
-    
-    
-    
     # Total and average points by season plot
     output$plot1 <- renderPlot({
         stats_yearly %>%
@@ -352,7 +354,7 @@ server <- function(input, output, session) {
                                         position = player()$position,
                                         week = 1:17)
         stats_weekly %>%
-            filter(position == player()$position & season == selected_season) %>%
+            filter(position == player()$position & season == input$year) %>%
             arrange(week) %>%
             group_by(player_display_name) %>%
             mutate(average_points = round(cummean(total_points),2)) %>%
@@ -455,6 +457,9 @@ ui <- fluidPage(
                 tabPanel("Weekly", fluid = T,
                          sidebarLayout(
                              sidebarPanel(
+                                 selectInput("position1", "Select Position:",
+                                             choices = c("QB", "RB", "WR", "TE"),
+                                             selected = "QB"),
                                  selectInput("player1", "Select Player:",
                                              choices = unique(stats_yearly$player_display_name),
                                              selectize = TRUE),
@@ -479,6 +484,9 @@ ui <- fluidPage(
                 tabPanel("Season", fluid = T,
                          sidebarLayout(
                              sidebarPanel(
+                                 selectInput("position2", "Select Position:",
+                                             choices = c("QB", "RB", "WR", "TE"),
+                                             selected = "QB"),
                                  selectInput("player2", "Select Player:",
                                              choices = unique(stats_yearly$player_display_name),
                                              selectize = TRUE),
