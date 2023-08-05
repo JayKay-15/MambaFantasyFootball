@@ -7,33 +7,7 @@ library(gt)
 stats_yearly <- stats_yearly %>% arrange(desc(season), player_display_name)
 stats_weekly <- stats_weekly %>% arrange(desc(season), player_display_name)
 
-# UI
-ui <- fluidPage(
-    titlePanel("Fantasy Football Dashboard"),
-    sidebarLayout(
-        sidebarPanel(
-            selectInput("player", "Select Player:",
-                        choices = unique(stats_yearly$player_display_name),
-                        selectize = TRUE),
-            selectInput("year", "Select Season:",
-                        choices = NULL,
-                        selected = max(stats_yearly$season))
-        ),
-        mainPanel(
-            plotOutput("plot1"),
-            gt_output("plot2"),
-            gt_output("plot3"),
-            plotOutput("plot4"),
-            gt_output("plot5"),
-            gt_output("plot6"),
-            plotOutput("plot7"),
-            gt_output("plot8"),
-            gt_output("plot9")
-        )
-    )
-)
-
-# Server
+# Server ----
 server <- function(input, output, session) {
     # Update the available seasons based on the selected player
     observeEvent(input$player, {
@@ -454,96 +428,63 @@ server <- function(input, output, session) {
                 columns = everything() ~ px(80)
             )
     })
-    
-    output$plot9 <- render_gt({
-        stats_yearly %>%
-            as_tibble() %>%
-            filter(
-                player_display_name == player()$player_display_name
-            ) %>%
-            tail(2) %>%
-            select(player_display_name, season, games, total_points, average_points, std_dev) %>%
-            pivot_wider(
-                names_from = season,
-                values_from = c(games, total_points, average_points, std_dev)
-            ) %>%
-            select(
-                player_display_name,
-                games_2021, total_points_2021, average_points_2021, std_dev_2021,
-                games_2022, total_points_2022, average_points_2022, std_dev_2022
-            ) %>%
-            mutate(
-                total_points_change = (total_points_2022 - total_points_2021) / total_points_2021 * 100,
-                average_points_change = (average_points_2022 - average_points_2021) / average_points_2021 * 100,
-                std_dev_change = (std_dev_2022 - std_dev_2021) / std_dev_2021 * 100
-            ) %>%
-            gt() %>%
-            gt_theme_538() %>%
-            tab_header(title = "Season Comparison") %>%
-            cols_align("center") %>%
-            cols_label(
-                player_display_name = "",
-                games_2021 = "Games",
-                games_2022 = "Games",
-                total_points_2021 = "Total Points",
-                total_points_2022 = "Total Points",
-                average_points_2021 = "Avg Points",
-                average_points_2022 = "Avg Points",
-                std_dev_2021 = "Standard Deviation",
-                std_dev_2022 = "Standard Deviation",
-                total_points_change = "Total Points % Change",
-                average_points_change = "Avg Points % Change",
-                std_dev_change = "Standard Deviation %Change"
-            ) %>%
-            tab_spanner(label = "2021", columns = c(games_2021:std_dev_2021)) %>%
-            tab_spanner(label = "2022", columns = c(games_2022:std_dev_2022)) %>%
-            tab_spanner(label = "Y/Y Change", columns = c(total_points_change:std_dev_change)) %>%
-            fmt_number(
-                columns = c(
-                    total_points_2021,  total_points_2022,
-                    average_points_2021, average_points_2022,
-                    std_dev_2021, std_dev_2022,
-                    total_points_change, average_points_change, std_dev_change
-                ),
-                decimals = 1
-            ) %>%
-            tab_style(
-                style = cell_text(weight = "bold"),
-                locations = cells_body(columns = c(games_2021, games_2022))
-            ) %>%
-            tab_style(
-                style = list(cell_text(color = "black", weight = "bold"),
-                             cell_fill(color = player$team_color, alpha = 0.5)),
-                locations = cells_body(columns = c(total_points_2021,
-                                                   average_points_2021,
-                                                   std_dev_2021))
-            ) %>%
-            tab_style(
-                style = list(cell_text(color = "black", weight = "bold"),
-                             cell_fill(color = player$team_color2, alpha = 0.5)),
-                locations = cells_body(columns = c(total_points_2022,
-                                                   average_points_2022,
-                                                   std_dev_2022))
-            ) %>%
-            tab_style(
-                style = list(cell_text(color = "black", weight = "bold"),
-                             cell_fill(color = player$team_color3, alpha = 0.5)),
-                locations = cells_body(columns = c(total_points_change,
-                                                   average_points_change,
-                                                   std_dev_change))
-            ) %>%
-            gt_add_divider(
-                c(std_dev_2022,std_dev_2021),
-                sides = "right",
-                color = "grey",
-                style = "solid",
-                weight = px(2),
-                include_labels = TRUE
-            )
-        
-    })
-    
+
 }
+
+
+# UI ----
+ui <- fluidPage(
+    
+    theme = bslib::bs_theme(bootswatch = "darkly"),
+    
+    titlePanel("Fantasy Football Player Dashboard"),
+    
+    tabsetPanel(type = "tabs",
+                tabPanel("Weekly", fluid = T,
+                         sidebarLayout(
+                             sidebarPanel(
+                                 selectInput("player", "Select Player:",
+                                             choices = unique(stats_yearly$player_display_name),
+                                             selectize = TRUE),
+                                 selectInput("year", "Select Season:",
+                                             choices = NULL,
+                                             selected = max(stats_yearly$season)),
+                                 gt_output("plot3"),
+                                 width = 3
+                             ),
+                             mainPanel(
+                                 fluidRow(
+                                     column(12, plotOutput("plot7")),
+                                     h3(textOutput("caption"), align = "center")
+                                 ),
+                                 fluidRow(
+                                     column(7, plotOutput("plot4")),
+                                     column(5, gt_output("plot6"))
+                                 )
+                             )
+                         )
+                ),
+                tabPanel("Season", fluid = T,
+                         sidebarLayout(
+                             sidebarPanel(
+                                 selectInput("player", "Select Player:",
+                                             choices = unique(stats_yearly$player_display_name),
+                                             selectize = TRUE)
+                             ),
+                             mainPanel(
+                                 fluidRow(
+                                     column(6, plotOutput("plot1")),
+                                     column(6, gt_output("plot2"))
+                                 ),
+                                 fluidRow(
+                                     column(6, gt_output("plot5")),
+                                     column(6, gt_output("plot8"))
+                                 )
+                             )
+                         )
+                )
+    )
+)
 
 # Run the Shiny app
 shinyApp(ui, server)
