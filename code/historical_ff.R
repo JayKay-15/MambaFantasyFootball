@@ -716,7 +716,7 @@ hvt_wr %>%
 
 # Select player
 player <- stats_yearly %>%
-    filter(player_display_name == "Stefon Diggs" & season == max(season)) %>%
+    filter(player_display_name == "CeeDee Lamb" & season == max(season)) %>%
     select(player_display_name, position, recent_team) %>%
     left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
 
@@ -725,15 +725,14 @@ selected_season <- stats_yearly %>%
     max()
 
 
-# Total and average points by season
+# Total and average points by season - add size for games played
 stats_yearly %>%
     filter(player_display_name == player$player_display_name) %>%
     ggplot(aes(season)) +
     geom_line(aes(y = total_points, color = player$team_color), linetype = "dashed") +
     geom_line(aes(y = average_points * 10, color = player$team_color2)) +
-    geom_point(aes(y = total_points, size = games, color = player$team_color)) +
-    geom_point(aes(y = average_points * 10, size = games, color = player$team_color2)) +
-    scale_size_continuous(range = c(0.5, 5), breaks = c(1, 2, 3)) +
+    geom_point(aes(y = total_points, color = player$team_color)) +
+    geom_point(aes(y = average_points * 10,  color = player$team_color2)) +
     scale_x_continuous(breaks = unique(stats_yearly$season), minor_breaks = NULL) +
     scale_y_continuous(breaks = seq(0, max(stats_yearly$total_points), 50),
                        limits = c(0, max(stats_yearly$total_points)),
@@ -775,9 +774,9 @@ stats_weekly %>%
 stats_weekly %>%
     filter(season == selected_season) %>%
     group_by(week, position) %>%
-    mutate(week_rank = rank(-total_points)) %>%
+    mutate(week_rank = rank(-total_points, ties.method = "first")) %>%
     ungroup() %>%
-    filter(player_display_name == "Dak Prescott") %>%
+    filter(player_display_name == player$player_display_name) %>%
     select(week, total_points, week_rank) %>%
     arrange(week) %>%
     gt() %>%
@@ -824,6 +823,11 @@ stats_yearly %>%
         games_2021, total_points_2021, average_points_2021, std_dev_2021,
         games_2022, total_points_2022, average_points_2022, std_dev_2022
     ) %>%
+    mutate(
+        total_points_change = (total_points_2022 - total_points_2021) / total_points_2021 * 100,
+        average_points_change = (average_points_2022 - average_points_2021) / average_points_2021 * 100,
+        std_dev_change = (std_dev_2022 - std_dev_2021) / std_dev_2021 * 100
+    ) %>%
     gt() %>%
     gt_theme_538() %>%
     tab_header(title = "Season Comparison") %>%
@@ -837,15 +841,20 @@ stats_yearly %>%
         average_points_2021 = "Avg Points",
         average_points_2022 = "Avg Points",
         std_dev_2021 = "Standard Deviation",
-        std_dev_2022 = "Standard Deviation"
+        std_dev_2022 = "Standard Deviation",
+        total_points_change = "Total Points % Change",
+        average_points_change = "Avg Points % Change",
+        std_dev_change = "Standard Deviation %Change"
     ) %>%
     tab_spanner(label = "2021", columns = c(games_2021:std_dev_2021)) %>%
     tab_spanner(label = "2022", columns = c(games_2022:std_dev_2022)) %>%
+    tab_spanner(label = "Y/Y Change", columns = c(total_points_change:std_dev_change)) %>%
     fmt_number(
         columns = c(
-            total_points_2021, total_points_2022,
+            total_points_2021,  total_points_2022,
             average_points_2021, average_points_2022,
-            std_dev_2021, std_dev_2022
+            std_dev_2021, std_dev_2022,
+            total_points_change, average_points_change, std_dev_change
         ),
         decimals = 1
     ) %>%
@@ -866,6 +875,21 @@ stats_yearly %>%
         locations = cells_body(columns = c(total_points_2022,
                                            average_points_2022,
                                            std_dev_2022))
+    ) %>%
+    tab_style(
+        style = list(cell_text(color = "black", weight = "bold"),
+                     cell_fill(color = player$team_color3, alpha = 0.5)),
+        locations = cells_body(columns = c(total_points_change,
+                                           average_points_change,
+                                           std_dev_change))
+    ) %>%
+    gt_add_divider(
+        c(std_dev_2022,std_dev_2021),
+        sides = "right",
+        color = "grey",
+        style = "solid",
+        weight = px(2),
+        include_labels = TRUE
     )
 
 # Actual VORP
@@ -1001,6 +1025,7 @@ stats_yearly %>%
         decimals = 1
     )
 
+
 # Rolling average table
 all_combinations <- expand.grid(player_display_name = unique(stats_weekly$player_display_name),
                                 position = player$position,
@@ -1010,18 +1035,20 @@ stats_weekly %>%
     arrange(week) %>%
     group_by(player_display_name) %>%
     mutate(average_points = round(cummean(total_points),2)) %>%
-    ungroup() %>%
-    group_by(week) %>%
-    mutate(pos_rank = round(rank(-average_points, ties.method = "first"))) %>%
+    mutate(run_total_points = round(cumsum(total_points),2)) %>%
     ungroup() %>%
     complete(all_combinations) %>%
     group_by(player_display_name) %>%
+    fill(run_total_points, .direction = "down") %>%
+    replace_na(list(total_points = 0)) %>%
     fill(total_points, average_points) %>%
-    mutate(pos_rank = round(rank(-average_points, ties.method = "first"))) %>%
+    mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
+    ungroup() %>%
+    group_by(week) %>%
+    mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
     ungroup() %>%
     filter(player_display_name == player$player_display_name) %>%
-    select(player_display_name, position, week,
-           total_points, average_points, pos_rank) %>%
+    select(week, total_points, average_points, pos_rank) %>%
     gt() %>%
     gt_theme_538() %>%
     tab_options(
@@ -1029,22 +1056,23 @@ stats_weekly %>%
     ) %>%
     tab_header(
         title = "Weekly Fantasy Performance",
-        subtitle = "Rolling Position Rank"
+        subtitle = "Rolling Position Rank by Total Points"
     ) %>%
     cols_align(
         "center"
     ) %>%
     cols_label(
-        player_display_name = "Player",
-        position = "Position",
         week = "Week",
-        total_points = "Total Points",
-        average_points = "Average Points",
+        total_points = "Weekly Points",
+        average_points = "Rolling Average Points",
         pos_rank = "Position Rank",
     ) %>%
     fmt_number(
         columns = c(total_points, average_points),
         decimals = 1
+    ) %>%
+    cols_width(
+        columns = everything() ~ px(80)
     )
 
 # Rolling average line graph
@@ -1068,6 +1096,7 @@ stats_weekly %>%
     ggplot(aes(week)) +
     geom_line(aes(y = total_points, color = player$team_color), linetype = "dashed") +
     geom_line(aes(y = average_points, color = player$team_color2), linetype = "solid") +
+    geom_point(aes(y = total_points, color = player$team_color)) +
     scale_color_manual(
         name = "",
         values = c(player$team_color, player$team_color2),
@@ -1079,7 +1108,10 @@ stats_weekly %>%
     ylab("Week Points") +
     xlab("Week") +
     scale_y_continuous(
-        sec.axis = sec_axis(~., name = "Average Points", labels = function(x) round(x, 2))) +
+        breaks = seq(0, max(stats_weekly$total_points), 5),
+        sec.axis = sec_axis(~., breaks = seq(0, max(stats_weekly$total_points), 5),
+                            name = "Average Points", labels = function(x) round(x, 2))) +
+    scale_x_continuous(breaks = seq(min(stats_weekly$week), max(stats_weekly$week), 1)) +
     theme_bw()
 
 
@@ -1087,11 +1119,13 @@ stats_weekly %>%
 stats_yearly %>%
     group_by(season, position) %>%
     mutate(avg_pts_rank = round(rank(-average_points, ties.method = "first")),
-           tot_pts_rank = round(rank(-total_points, ties.method = "first"))) %>%
+           tot_pts_rank = round(rank(-total_points, ties.method = "first")),
+           adj_pts_rank = round(rank(-average_points_adj, ties.method = "first"))) %>%
     ungroup() %>%
     filter(player_display_name == player$player_display_name) %>%
-    select(player_display_name, season,
-           total_points, tot_pts_rank, average_points, avg_pts_rank) %>%
+    select(season, games,
+           total_points, tot_pts_rank, average_points, avg_pts_rank,
+           average_points_adj, adj_pts_rank) %>%
     arrange(season) %>%
     gt() %>%
     gt_theme_538() %>%
@@ -1106,26 +1140,32 @@ stats_yearly %>%
         "center"
     ) %>%
     cols_label(
-        player_display_name = "Player",
         season = "Season",
+        games = "Games",
         total_points = "Total Points",
         tot_pts_rank = "Total Points Rank",
         average_points = "Average Points",
-        avg_pts_rank = "Average Points Rank"
+        avg_pts_rank = "Average Points Rank",
+        average_points_adj = "Adjusted Average Points",
+        adj_pts_rank = "Adjusted Points Rank"
     ) %>%
     fmt_number(
-        columns = c(total_points, average_points),
+        columns = c(total_points, average_points, average_points_adj),
         decimals = 1
+    )  %>%
+    cols_width(
+        columns = everything() ~ px(80)
     )
+
 
 
 stats_yearly %>%
     filter(player_display_name == player$player_display_name) %>%
     mutate(adjustment_tot = total_points - total_points_adj,
            adjustment_avg = average_points_adj - average_points) %>%
-    select(player_display_name, season, games,
+    select(season, games,
            total_points, total_points_adj,
-           average_points, average_points_adj, adjustment_avg) %>%
+           average_points, average_points_adj) %>%
     gt() %>%
     gt_theme_538() %>%
     tab_options(
@@ -1139,20 +1179,23 @@ stats_yearly %>%
         "center"
     ) %>%
     cols_label(
-        player_display_name = "Player",
         season = "Season",
         games = "Games",
         total_points = "Total Points",
         total_points_adj = "Total Points Adjusted",
         average_points = "Average Points",
         average_points_adj = "Average Points Adjusted",
-        adjustment_avg = "+/-"
+        # adjustment_avg = "+/-"
     ) %>%
     fmt_number(
         columns = c(total_points, total_points_adj,
-                    average_points, average_points_adj, adjustment_avg),
+                    average_points, average_points_adj),
         decimals = 1
+    )  %>%
+    cols_width(
+        columns = everything() ~ px(80)
     )
+
     
 
 
