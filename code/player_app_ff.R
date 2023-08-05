@@ -9,22 +9,75 @@ stats_weekly <- stats_weekly %>% arrange(desc(season), player_display_name)
 
 # Server ----
 server <- function(input, output, session) {
+    
+    selected_player <- reactiveVal(stats_yearly$player_display_name[1])
+    
+    observeEvent(input$player1, {
+        updateSelectInput(session, "player2", selected=input$player1)
+        selected_player(input$player1)
+    })
+    observeEvent(input$player2, {
+        updateSelectInput(session, "player1", selected=input$player2)
+        selected_player(input$player2)
+    })
+    
     # Update the available seasons based on the selected player
-    observeEvent(input$player, {
+    observeEvent(selected_player(), {
         seasons <- stats_yearly %>%
-            filter(player_display_name == input$player) %>%
+            filter(player_display_name == selected_player()) %>%
             pull(season) %>%
             unique()
         updateSelectInput(session, "year", choices = seasons, selected = max(seasons))
     })
     
-    # Filter the data based on player and year selection
     player <- reactive({
         stats_yearly %>%
-            filter(player_display_name == input$player & season == input$year) %>%
+            filter(player_display_name == selected_player() & season == input$year) %>%
             select(player_display_name, position, recent_team) %>%
             left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
     })
+
+    
+    # 
+    # output$selectInput1 <- renderUI({
+    #     selectInput(inputId = "id1", 
+    #                 label = "select", 
+    #                 choices = c("a","b","c"), 
+    #                 selected = player())
+    # })
+    # output$selectInput2 <- renderUI({
+    #     selectInput(inputId = "id2", 
+    #                 label = "select", 
+    #                 choices = c("a","b","c"), 
+    #                 selected = player())
+    # })
+    # 
+    # observeEvent(input$id2,{
+    #     selected_player(input$id2)
+    # })
+    # 
+    # observeEvent(input$id1,{
+    #     selected_player(input$id1)
+    # })
+
+    # # Update the available seasons based on the selected player
+    # observeEvent(input$player, {
+    #     seasons <- stats_yearly %>%
+    #         filter(player_display_name == input$player) %>%
+    #         pull(season) %>%
+    #         unique()
+    #     updateSelectInput(session, "year", choices = seasons, selected = max(seasons))
+    # })
+    # 
+    # player <- reactive({
+    #     stats_yearly %>%
+    #         filter(player_display_name == input$player & season == input$year) %>%
+    #         select(player_display_name, position, recent_team) %>%
+    #         left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
+    # })
+    
+    
+    
     
     # Total and average points by season plot
     output$plot1 <- renderPlot({
@@ -38,7 +91,8 @@ server <- function(input, output, session) {
             scale_x_continuous(breaks = unique(stats_yearly$season), minor_breaks = NULL) +
             scale_y_continuous(breaks = seq(0, max(stats_yearly$total_points), 50),
                                limits = c(0, max(stats_yearly$total_points)),
-                               sec.axis = sec_axis(~ . / 10, name = "Average Points")) +
+                               sec.axis = sec_axis(~ . / 10, name = "Average Points",
+                                                   breaks = (seq(0, max(stats_yearly$total_points), 50))/10)) +
             scale_color_manual(
                 name = "",
                 values = c(player()$team_color, player()$team_color2),
@@ -125,7 +179,7 @@ server <- function(input, output, session) {
             ggplot(aes(reorder(player_display_name, vorp), vorp)) +
             geom_bar(stat = "identity", fill = "black", alpha = 0.3) +
             geom_bar(
-                data = subset(stats_yearly, player_display_name == player()$player_display_name & season == 2022),
+                data = subset(stats_yearly, player_display_name == player()$player_display_name & season == input$year),
                 stat = "identity",
                 fill = player()$team_color
             ) +
@@ -142,7 +196,7 @@ server <- function(input, output, session) {
             stats_yearly %>%
                 filter(player_display_name == player()$player_display_name) %>%
                 select(
-                    season, recent_team, games, total_points, average_points, vorp, pos_rank,
+                    season, recent_team, games, vorp,
                     passing_yards, passing_tds, passing_epa, rushing_yards, rushing_tds
                 ) %>%
                 arrange(season) %>%
@@ -157,10 +211,7 @@ server <- function(input, output, session) {
                     season = "Season",
                     recent_team = "Team",
                     games = "Games",
-                    total_points = "Total Points",
-                    average_points = "Average Points",
                     vorp = "VORP",
-                    pos_rank = "Position Rank",
                     passing_yards = "Pass Yards",
                     passing_tds = "Pass TDs",
                     passing_epa = "Pass EPA",
@@ -168,14 +219,14 @@ server <- function(input, output, session) {
                     rushing_tds = "Rush TDs"
                 ) %>%
                 fmt_number(
-                    columns = c(total_points, average_points, vorp, passing_epa),
+                    columns = c(vorp, passing_epa),
                     decimals = 1
                 )
         } else if (player()$position == "RB") {
             stats_yearly %>%
                 filter(player_display_name == player()$player_display_name) %>%
                 select(
-                    season, recent_team, games, total_points, average_points, vorp, pos_rank,
+                    season, recent_team, games, vorp,
                     rushing_yards, rushing_tds, rushing_epa,
                     receptions, receiving_yards, receiving_tds, receiving_epa
                 ) %>%
@@ -191,10 +242,7 @@ server <- function(input, output, session) {
                     season = "Season",
                     recent_team = "Team",
                     games = "Games",
-                    total_points = "Total Points",
-                    average_points = "Average Points",
                     vorp = "VORP",
-                    pos_rank = "Position Rank",
                     rushing_yards = "Rush Yards",
                     rushing_tds = "Rush TDs",
                     rushing_epa = "Rush EPA",
@@ -204,14 +252,14 @@ server <- function(input, output, session) {
                     receiving_epa = "Receiving EPA"
                 ) %>%
                 fmt_number(
-                    columns = c(total_points, average_points, vorp, rushing_epa, receiving_epa),
+                    columns = c(vorp, rushing_epa, receiving_epa),
                     decimals = 1
                 )
         } else if (player()$position %in% c("WR", "TE")) {
             stats_yearly %>%
                 filter(player_display_name == player()$player_display_name) %>%
                 select(
-                    season, recent_team, games, total_points, average_points, vorp, pos_rank,
+                    season, recent_team, games,vorp,
                     touches, receptions, receiving_yards, receiving_tds, receiving_epa,
                     rushing_yards, rushing_tds, rushing_epa
                 ) %>%
@@ -227,10 +275,7 @@ server <- function(input, output, session) {
                     season = "Season",
                     recent_team = "Team",
                     games = "Games",
-                    total_points = "Total Points",
-                    average_points = "Average Points",
                     vorp = "VORP",
-                    pos_rank = "Position Rank",
                     touches = "Touches",
                     receptions = "Receptions",
                     receiving_yards = "Receiving Yards",
@@ -241,7 +286,7 @@ server <- function(input, output, session) {
                     rushing_epa = "Rush EPA"
                 ) %>%
                 fmt_number(
-                    columns = c(total_points, average_points, vorp, receiving_epa, rushing_epa),
+                    columns = c(vorp, receiving_epa, rushing_epa),
                     decimals = 1
                 )
         } else {
@@ -307,18 +352,21 @@ server <- function(input, output, session) {
                                         position = player()$position,
                                         week = 1:17)
         stats_weekly %>%
-            filter(position == player()$position & season == input$year) %>%
+            filter(position == player()$position & season == selected_season) %>%
             arrange(week) %>%
             group_by(player_display_name) %>%
             mutate(average_points = round(cummean(total_points),2)) %>%
-            ungroup() %>%
-            group_by(week) %>%
-            mutate(pos_rank = round(rank(-average_points, ties.method = "first"))) %>%
+            mutate(run_total_points = round(cumsum(total_points),2)) %>%
             ungroup() %>%
             complete(all_combinations) %>%
             group_by(player_display_name) %>%
+            fill(run_total_points, .direction = "down") %>%
+            replace_na(list(total_points = 0)) %>%
             fill(total_points, average_points) %>%
-            mutate(pos_rank = round(rank(-average_points, ties.method = "first"))) %>%
+            mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
+            ungroup() %>%
+            group_by(week) %>%
+            mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
             ungroup() %>%
             filter(player_display_name == player()$player_display_name) %>%
             select(player_display_name, position, week,
@@ -343,48 +391,8 @@ server <- function(input, output, session) {
                                     name = "Average Points", labels = function(x) round(x, 2))) +
             scale_x_continuous(breaks = seq(min(stats_weekly$week), max(stats_weekly$week), 1)) +
             theme_bw()
-        
+
     })
-    
-    # output$plot8 <- render_gt({
-    #     stats_yearly %>%
-    #         filter(player_display_name == player()$player_display_name) %>%
-    #         mutate(adjustment_tot = total_points - total_points_adj,
-    #                adjustment_avg = average_points_adj - average_points) %>%
-    #         select(season, games,
-    #                total_points, total_points_adj,
-    #                average_points, average_points_adj) %>%
-    #         gt() %>%
-    #         gt_theme_538() %>%
-    #         tab_options(
-    #             heading.align = "center",
-    #         ) %>%
-    #         tab_header(
-    #             title = "Fantasy Performance by Season",
-    #             subtitle = "Adjustments assuming replacement player for missed games"
-    #         ) %>%
-    #         cols_align(
-    #             "center"
-    #         ) %>%
-    #         cols_label(
-    #             season = "Season",
-    #             games = "Games",
-    #             total_points = "Total Points",
-    #             total_points_adj = "Total Points Adjusted",
-    #             average_points = "Average Points",
-    #             average_points_adj = "Average Points Adjusted",
-    #             # adjustment_avg = "+/-"
-    #         ) %>%
-    #         fmt_number(
-    #             columns = c(total_points, total_points_adj,
-    #                         average_points, average_points_adj),
-    #             decimals = 1
-    #         )  %>%
-    #         cols_width(
-    #             columns = everything() ~ px(80)
-    #         )
-    # })
-    
     
     output$plot8 <- render_gt({
         stats_yearly %>%
@@ -394,7 +402,7 @@ server <- function(input, output, session) {
                    adj_pts_rank = round(rank(-average_points_adj, ties.method = "first"))) %>%
             ungroup() %>%
             filter(player_display_name == player()$player_display_name) %>%
-            select(season, games,
+            select(season, recent_team, games,
                    total_points, tot_pts_rank, average_points, avg_pts_rank,
                    average_points_adj, adj_pts_rank) %>%
             arrange(season) %>%
@@ -412,6 +420,7 @@ server <- function(input, output, session) {
             ) %>%
             cols_label(
                 season = "Season",
+                recent_team = "Team",
                 games = "Games",
                 total_points = "Total Points",
                 tot_pts_rank = "Total Points Rank",
@@ -426,6 +435,9 @@ server <- function(input, output, session) {
             )  %>%
             cols_width(
                 columns = everything() ~ px(80)
+            ) %>%
+            tab_footnote(
+                "Adjusted points assumes replacement level performance for missed games"
             )
     })
 
@@ -443,7 +455,7 @@ ui <- fluidPage(
                 tabPanel("Weekly", fluid = T,
                          sidebarLayout(
                              sidebarPanel(
-                                 selectInput("player", "Select Player:",
+                                 selectInput("player1", "Select Player:",
                                              choices = unique(stats_yearly$player_display_name),
                                              selectize = TRUE),
                                  selectInput("year", "Select Season:",
@@ -467,18 +479,21 @@ ui <- fluidPage(
                 tabPanel("Season", fluid = T,
                          sidebarLayout(
                              sidebarPanel(
-                                 selectInput("player", "Select Player:",
+                                 selectInput("player2", "Select Player:",
                                              choices = unique(stats_yearly$player_display_name),
-                                             selectize = TRUE)
+                                             selectize = TRUE),
+                                 gt_output("plot2"),
+                                 width = 4
                              ),
                              mainPanel(
                                  fluidRow(
-                                     column(6, plotOutput("plot1")),
-                                     column(6, gt_output("plot2"))
+                                     column(12, plotOutput("plot1"))
                                  ),
                                  fluidRow(
-                                     column(6, gt_output("plot5")),
-                                     column(6, gt_output("plot8"))
+                                     column(12, gt_output("plot8"))
+                                 ),
+                                 fluidRow(
+                                     column(12, gt_output("plot5"))
                                  )
                              )
                          )
@@ -488,4 +503,5 @@ ui <- fluidPage(
 
 # Run the Shiny app
 shinyApp(ui, server)
+
 
