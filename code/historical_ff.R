@@ -736,7 +736,8 @@ stats_yearly %>%
     scale_x_continuous(breaks = unique(stats_yearly$season), minor_breaks = NULL) +
     scale_y_continuous(breaks = seq(0, max(stats_yearly$total_points), 50),
                        limits = c(0, max(stats_yearly$total_points)),
-                       sec.axis = sec_axis(~ . / 10, name = "Average Points")) +
+                       sec.axis = sec_axis(~ . / 10, name = "Average Points",
+                                           breaks = (seq(0, max(stats_yearly$total_points), 50))/10)) +
     scale_color_manual(
         name = "",
         values = c(player$team_color, player$team_color2),
@@ -899,7 +900,7 @@ stats_yearly %>%
     ggplot(aes(reorder(player_display_name, vorp), vorp)) +
     geom_bar(stat = "identity", fill = "black", alpha = 0.3) +
     geom_bar(data = subset(stats_yearly,
-                           player_display_name == player$player_display_name & season == 2022),
+                           player_display_name == player$player_display_name & season == selected_season),
              stat = "identity",
              fill = player$team_color) +
     labs(title = "Value Over Replacement Player (VORP)",
@@ -1174,7 +1175,7 @@ stats_weekly %>%
     ) %>%
     tab_header(
         title = "Weekly Fantasy Performance",
-        subtitle = "Rolling Position Rank by Total Points"
+        subtitle = "Rolling Position Rank by Total Points",
     ) %>%
     cols_align(
         "center"
@@ -1199,14 +1200,17 @@ stats_weekly %>%
     arrange(week) %>%
     group_by(player_display_name) %>%
     mutate(average_points = round(cummean(total_points),2)) %>%
-    ungroup() %>%
-    group_by(week) %>%
-    mutate(pos_rank = round(rank(-average_points, ties.method = "first"))) %>%
+    mutate(run_total_points = round(cumsum(total_points),2)) %>%
     ungroup() %>%
     complete(all_combinations) %>%
     group_by(player_display_name) %>%
+    fill(run_total_points, .direction = "down") %>%
+    replace_na(list(total_points = 0)) %>%
     fill(total_points, average_points) %>%
-    mutate(pos_rank = round(rank(-average_points, ties.method = "first"))) %>%
+    mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
+    ungroup() %>%
+    group_by(week) %>%
+    mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
     ungroup() %>%
     filter(player_display_name == player$player_display_name) %>%
     select(player_display_name, position, week,
@@ -1241,7 +1245,7 @@ stats_yearly %>%
            adj_pts_rank = round(rank(-average_points_adj, ties.method = "first"))) %>%
     ungroup() %>%
     filter(player_display_name == player$player_display_name) %>%
-    select(season, games,
+    select(season, recent_team, games,
            total_points, tot_pts_rank, average_points, avg_pts_rank,
            average_points_adj, adj_pts_rank) %>%
     arrange(season) %>%
@@ -1259,6 +1263,7 @@ stats_yearly %>%
     ) %>%
     cols_label(
         season = "Season",
+        recent_team = "Team",
         games = "Games",
         total_points = "Total Points",
         tot_pts_rank = "Total Points Rank",
@@ -1273,6 +1278,9 @@ stats_yearly %>%
     )  %>%
     cols_width(
         columns = everything() ~ px(80)
+    ) %>%
+    tab_footnote(
+        "Adjusted points assumes replacement level performance for missed games"
     )
 
 
@@ -1281,7 +1289,7 @@ stats_yearly %>%
     filter(player_display_name == player$player_display_name) %>%
     mutate(adjustment_tot = total_points - total_points_adj,
            adjustment_avg = average_points_adj - average_points) %>%
-    select(season, games,
+    select(season, recent_team, games,
            total_points, total_points_adj,
            average_points, average_points_adj) %>%
     gt() %>%
@@ -1298,6 +1306,7 @@ stats_yearly %>%
     ) %>%
     cols_label(
         season = "Season",
+        recent_team = "Team",
         games = "Games",
         total_points = "Total Points",
         total_points_adj = "Total Points Adjusted",
@@ -1312,6 +1321,9 @@ stats_yearly %>%
     )  %>%
     cols_width(
         columns = everything() ~ px(80)
+    ) %>%
+    tab_footnote(
+        "Adjusted points assumes replacement level performance for missed games"
     )
 
     
