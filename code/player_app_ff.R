@@ -1,7 +1,5 @@
 # Fantasy Football Player App
 library(shiny)
-library(tidyverse)
-library(gt)
 
 # Load your stats_yearly and stats_weekly data here
 stats_yearly <- stats_yearly %>% arrange(desc(season), player_display_name)
@@ -86,7 +84,7 @@ server <- function(input, output, session) {
             ) +
             labs(title = "Total and Average Points by Season",
                  subtitle = "Only Includes Fantasy Season",
-                 caption = "Point size is based on the number of games played") +
+                 caption = "Figure: @MambaMetrics | Data: @nflfastR") +
             xlab("Season") +
             ylab("Total Points") +
             theme_bw()
@@ -112,7 +110,10 @@ server <- function(input, output, session) {
             cols_label(week_group = "") %>%
             cols_align("center") %>%
             gt_hulk_col_numeric(-week_group, trim = FALSE) %>%
-            fmt_number(decimals = 1)
+            fmt_number(decimals = 1) %>%
+            tab_footnote(
+                "Figure: @MambaMetrics | Data: @nflfastR"
+            )
     })
     
     # Weekly rank table
@@ -150,6 +151,9 @@ server <- function(input, output, session) {
             ) %>%
             cols_width(
                 columns = everything() ~ px(80)
+            ) %>%
+            tab_footnote(
+                "Figure: @MambaMetrics | Data: @nflfastR"
             )
     })
     
@@ -168,7 +172,10 @@ server <- function(input, output, session) {
                 stat = "identity",
                 fill = player()$team_color
             ) +
-            labs(title = "Value Over Replacement Player (VORP)", subtitle = "") +
+            labs(title = "Value Over Replacement Player (VORP)",
+                 subtitle = "Using Total Points",
+                 caption = "Figure: @MambaMetrics | Data: @nflfastR"
+            ) +
             xlab("") +
             ylab("VORP") +
             coord_flip() +
@@ -206,6 +213,9 @@ server <- function(input, output, session) {
                 fmt_number(
                     columns = c(vorp, passing_epa),
                     decimals = 1
+                ) %>%
+                tab_footnote(
+                    "Figure: @MambaMetrics | Data: @nflfastR"
                 )
         } else if (player()$position == "RB") {
             stats_yearly %>%
@@ -239,6 +249,9 @@ server <- function(input, output, session) {
                 fmt_number(
                     columns = c(vorp, rushing_epa, receiving_epa),
                     decimals = 1
+                ) %>%
+                tab_footnote(
+                    "Figure: @MambaMetrics | Data: @nflfastR"
                 )
         } else if (player()$position %in% c("WR", "TE")) {
             stats_yearly %>%
@@ -273,6 +286,9 @@ server <- function(input, output, session) {
                 fmt_number(
                     columns = c(vorp, receiving_epa, rushing_epa),
                     decimals = 1
+                ) %>%
+                tab_footnote(
+                    "Figure: @MambaMetrics | Data: @nflfastR"
                 )
         } else {
             # Handle the case when the player's position is not recognized
@@ -300,10 +316,12 @@ server <- function(input, output, session) {
             mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
             ungroup() %>%
             group_by(week) %>%
-            mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
+            mutate(pos_rank = round(rank(-run_total_points, ties.method = "first")),
+                   week_rank = if_else(total_points == 0,
+                                       NA, rank(-total_points, ties.method = "first"))) %>%
             ungroup() %>%
             filter(player_display_name == player()$player_display_name) %>%
-            select(week, total_points, average_points, pos_rank) %>%
+            select(week, total_points, week_rank, average_points, pos_rank) %>%
             gt() %>%
             gt_theme_538() %>%
             tab_options(
@@ -318,6 +336,7 @@ server <- function(input, output, session) {
             ) %>%
             cols_label(
                 week = "Week",
+                week_rank = "Weekly Points Rank",
                 total_points = "Weekly Points",
                 average_points = "Rolling Average Points",
                 pos_rank = "Position Rank",
@@ -327,7 +346,10 @@ server <- function(input, output, session) {
                 decimals = 1
             ) %>%
             cols_width(
-                columns = everything() ~ px(80)
+                columns = everything() ~ px(75)
+            ) %>%
+            tab_footnote(
+                "Figure: @MambaMetrics | Data: @nflfastR"
             )
         
     })
@@ -367,7 +389,8 @@ server <- function(input, output, session) {
                 guide = guide_legend(override.aes = list(linetype = c("dashed", "solid"),
                                                          color = c(player()$team_color, player()$team_color2)))) +
             labs(title = "Week and Average Points by Week",
-                 subtitle = "Week points are the points scored in a particular week") +
+                 subtitle = "Week points are the points scored in a particular week",
+                 caption = "Figure: @MambaMetrics | Data: @nflfastR") +
             ylab("Week Points") +
             xlab("Week") +
             scale_y_continuous(
@@ -387,7 +410,7 @@ server <- function(input, output, session) {
                    adj_pts_rank = round(rank(-average_points_adj, ties.method = "first"))) %>%
             ungroup() %>%
             filter(player_display_name == player()$player_display_name) %>%
-            select(season, recent_team, games,
+            select(season, recent_team, games, vorp, std_dev,
                    total_points, tot_pts_rank, average_points, avg_pts_rank,
                    average_points_adj, adj_pts_rank) %>%
             arrange(season) %>%
@@ -407,6 +430,8 @@ server <- function(input, output, session) {
                 season = "Season",
                 recent_team = "Team",
                 games = "Games",
+                vorp = "VORP",
+                std_dev = "Standard Deviation",
                 total_points = "Total Points",
                 tot_pts_rank = "Total Points Rank",
                 average_points = "Average Points",
@@ -415,15 +440,19 @@ server <- function(input, output, session) {
                 adj_pts_rank = "Adjusted Points Rank"
             ) %>%
             fmt_number(
-                columns = c(total_points, average_points, average_points_adj),
+                columns = c(total_points, average_points, average_points_adj, std_dev),
                 decimals = 1
             )  %>%
             cols_width(
-                columns = everything() ~ px(80)
+                columns = everything() ~ px(78)
             ) %>%
             tab_footnote(
-                "Adjusted points assumes replacement level performance for missed games"
-            )
+                "Adjusted average points assumes replacement level performance for missed games"
+            ) %>%
+            tab_footnote(
+                "Figure: @MambaMetrics | Data: @nflfastR"
+            ) %>%
+            tab_options(footnotes.multiline = TRUE)
     })
 
 }
@@ -449,17 +478,16 @@ ui <- fluidPage(
                                  selectInput("year", "Select Season:",
                                              choices = NULL,
                                              selected = max(stats_yearly$season)),
-                                 gt_output("plot3"),
-                                 width = 3
+                                 gt_output("plot6"),
+                                 width = 4
                              ),
                              mainPanel(
                                  fluidRow(
-                                     column(12, plotOutput("plot7")),
+                                     column(12, plotOutput("plot7", height = 300)),
                                      h3(textOutput("caption"), align = "center")
                                  ),
                                  fluidRow(
-                                     column(7, plotOutput("plot4")),
-                                     column(5, gt_output("plot6"))
+                                     column(12, plotOutput("plot4", height = 300))
                                  )
                              )
                          )
@@ -478,13 +506,10 @@ ui <- fluidPage(
                              ),
                              mainPanel(
                                  fluidRow(
-                                     column(12, plotOutput("plot1"))
+                                     column(12, plotOutput("plot1", height = 300))
                                  ),
                                  fluidRow(
                                      column(12, gt_output("plot8"))
-                                 ),
-                                 fluidRow(
-                                     column(12, gt_output("plot5"))
                                  )
                              )
                          )
