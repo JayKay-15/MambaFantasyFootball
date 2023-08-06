@@ -717,7 +717,7 @@ hvt_wr %>%
 
 # Select player
 player <- stats_yearly %>%
-    filter(player_display_name == "Tony Pollard" & season == max(season)) %>%
+    filter(player_display_name == "CeeDee Lamb" & season == max(season)) %>%
     select(player_display_name, position, recent_team) %>%
     left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
 
@@ -1265,28 +1265,27 @@ hvt_rb <- pbp_fantasy %>%
                  names_to = "hvt_type", values_to = "touch_pct") %>%
     filter(total_touches >= 150)
 
-
-
+# total HVOs
 hvt_rb %>%
     filter(
         hvt_type == "hvt_pct" &
-            (total_touches >= 150 | player_name == player$player_display_name)
-    ) %>%
-    ggplot(aes(touch_pct, reorder(player_name, touch_pct),
+            (total_touches >= 150 | player_name == player$player_display_name)) %>%
+    ggplot(aes(hvts, reorder(player_name, hvts),
                fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
     geom_col() +
-    scale_fill_manual(values = c("Selected" = player$team_color, "Not Selected" = player$team_color2),
-                      guide = "none") + 
-    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
-    labs(x = "Percent of plays",
-         fill = "Total Touches",
-         title = "Visualization of TRAP backs, displaying RB high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
+    scale_fill_manual(values = c("Selected" = player$team_color,
+                                 "Not Selected" =  alpha("gray", 0.5))) +
+    labs(x = "High Values Opportunities",
+         y = "",
+         title = "Number of High Value Opportunities (min. 150 total touches)",
          caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    guides(fill = FALSE) +
     theme(axis.title.y = element_blank(),
           axis.ticks.y = element_blank(),
-          axis.title.x = element_blank())
+          axis.title.x = element_blank()) +
+    theme_bw()
 
-
+# HVOs by play type
 hvt_rb %>%
     filter(hvt_type %in% c("hvt_rush", "hvt_rec")) %>%
     ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = hvt_type)) +
@@ -1294,17 +1293,19 @@ hvt_rb %>%
     geom_bar(
         data = subset(hvt_rb, player_name == player$player_display_name &
                           hvt_type %in% c("hvt_rush", "hvt_rec")),
-        stat = "identity"
-    ) +
-    scale_fill_manual(values = c("hvt_rush" = player$team_color, "hvt_rec" = player$team_color2)) + 
+        stat = "identity") +
+    scale_fill_manual(values = c("hvt_rush" = player$team_color, "hvt_rec" = player$team_color2),
+                      labels=c("Rush", "Reception")) + 
     scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
-    labs(x = "Percent of plays",
+    labs(x = "Percent of Plays",
+         y = "",
          fill = "Play Type",
-         title = "Visualization of TRAP backs, displaying RB high value touches (carries inside the 10\nand catches) as a % of total touches (min 100 touches)",
-         caption = "Figure: @SamHoppen | Data: @nflfastR") +
+         title = "High Value Opportunities as Percentage of Total Touches (min. 150 total touches)",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
     theme(axis.title.y = element_blank(),
           axis.ticks.y = element_blank(),
-          axis.title.x = element_blank())
+          axis.title.x = element_blank()) +
+    theme_bw()
 
 
 
@@ -1332,7 +1333,7 @@ hvt_wr <- pbp_fantasy %>%
                yardline_100 <= 20 & yardline_100 >= 0 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_20_1",
                TRUE ~ "other")) %>%
     filter(rusher_position == "WR" | receiver_position == "WR") %>%
-    mutate(player_name = if_else(is.na(rusher_player_name), receiver_player_name, rusher_player_name),
+    mutate(player_name = if_else(is.na(rusher_full_name), receiver_full_name, rusher_full_name),
            player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
     group_by(player_name,
              player_id) %>%
@@ -1340,7 +1341,7 @@ hvt_wr <- pbp_fantasy %>%
               ten_zone_rushes = sum(ten_zone_rush),
               tgt = sum(tgt),
               ten_zone_tgt = sum(ten_zone_tgt),
-              adot = mean(air_yards, na.rm = T),
+              adot = as.numeric(mean(air_yards, na.rm = T)),
               total_pot_touches = sum(rush_attempt) + sum(tgt),
               hvt_pot = ten_zone_tgt + ten_zone_rushes,
               hvt_pot_pct = hvt_pot / total_pot_touches) %>%
@@ -1348,30 +1349,62 @@ hvt_wr <- pbp_fantasy %>%
                  names_to = "hvt_type", values_to = "touch_pct") %>%
     filter(total_pot_touches >= 75)
 
+# targets & carries inside the 10
 hvt_wr %>%
-    ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = adot)) +
+    ggplot(aes(touch_pct, reorder(player_name, touch_pct),
+               fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
     geom_col() +
+    scale_fill_manual(values = c("Selected" = player$team_color,
+                                 "Not Selected" =  alpha("gray", 0.5))) +
     scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
-    labs(x = "Percent of plays",
-         fill = "aDot",
-         title = "Visualization of TRAP receivers, displaying WR high value touches (carries and targets inside the 10)\nas a % of total touches (min 100 touches)",
+    labs(x = "Percent of High Values Opportunities",
+         y = "",
+         title = "Percentage of High Value Opportunities (min. 75 potential touches)",
+         subtitle = "Targets & Carries Inside the Ten", 
          caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    guides(fill = FALSE) +
     theme(axis.title.y = element_blank(),
           axis.ticks.y = element_blank(),
-          axis.title.x = element_blank())
+          axis.title.x = element_blank()) +
+    theme_bw()
 
+# targets
 hvt_wr %>%
-    ggplot(aes(hvt_pot, reorder(player_name, hvt_pot), fill = adot)) +
+    ggplot(aes(tgt, reorder(player_name, tgt),
+               fill = ifelse(player_name == player$player_display_name,
+                             "Selected", "Not Selected"))) +
     geom_col() +
     scale_x_continuous() +
-    labs(x = "Percent of plays",
-         fill = "aDot",
-         title = "Visualization of TRAP receivers, displaying WR high value opportunities (carries and targets inside the 10)\nmin 100 touches",
+    scale_fill_manual(values = c("Selected" = player$team_color, "Not Selected" = alpha("gray", 0.5))) +
+    labs(x = "Targets",
+         y = "",
+         title = "Total Targets (min. 75 potential touches)",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    guides(fill = FALSE) +
+    theme(axis.title.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.x = element_blank()) +
+    theme_bw()
+
+
+pal_hex <- c(
+    "#762a83", "#af8dc3", "#e7d4e8",
+    "#d9f0d3", "#7fbf7b", "#1b7837"
+    )
+
+hvt_wr %>%
+    ggplot(aes(tgt, reorder(player_name, tgt), fill = adot)) +
+    geom_col() +
+    scale_x_continuous() +
+    scale_fill_gradientn(colors = pal_hex) +
+    labs(x = "Targets",
+         y = "",
+         title = "Total Targets (min. 75 potential touches)",
          caption = "Figure: @MambaMetrics | Data: @nflfastR") +
     theme(axis.title.y = element_blank(),
           axis.ticks.y = element_blank(),
-          axis.title.x = element_blank())
-
+          axis.title.x = element_blank()) +
+    theme_bw()
 
 
 
