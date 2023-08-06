@@ -11,10 +11,11 @@ library(ggimage)
 # library(patchwork)
 library(gt)
 library(gtExtras)
+library(DT) 
 
 
 # pbp <- nflfastR::load_pbp(c(2013:2022))
-pbp_fantasy <- nflfastR::load_pbp(c(2017:2022))
+pbp_fantasy <- nflfastR::load_pbp(c(2018:2022))
 roster <- nflfastR::fast_scraper_roster(2022)
 pbp_fantasy <- pbp_fantasy %>%
     mutate(fantasy_season = if_else((season<=2020 & week<=16) |
@@ -904,7 +905,7 @@ stats_yearly %>%
              stat = "identity",
              fill = player$team_color) +
     labs(title = "Value Over Replacement Player (VORP)",
-         subtitle = "") +
+         subtitle = "Using Total Points") +
     xlab("") +
     ylab("VORP") +
     coord_flip() +
@@ -1037,8 +1038,8 @@ stats_weekly %>%
     filter(position == player$position & season == selected_season) %>%
     arrange(week) %>%
     group_by(player_display_name) %>%
-    mutate(average_points = round(cummean(total_points),2)) %>%
-    mutate(run_total_points = round(cumsum(total_points),2)) %>%
+    mutate(average_points = round(cummean(total_points),2),
+           run_total_points = round(cumsum(total_points),2)) %>%
     ungroup() %>%
     complete(all_combinations) %>%
     group_by(player_display_name) %>%
@@ -1048,10 +1049,12 @@ stats_weekly %>%
     mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
     ungroup() %>%
     group_by(week) %>%
-    mutate(pos_rank = round(rank(-run_total_points, ties.method = "first"))) %>%
+    mutate(pos_rank = round(rank(-run_total_points, ties.method = "first")),
+           week_rank = if_else(total_points == 0,
+                               NA, rank(-total_points, ties.method = "first"))) %>%
     ungroup() %>%
     filter(player_display_name == player$player_display_name) %>%
-    select(week, total_points, average_points, pos_rank) %>%
+    select(week, total_points, week_rank, average_points, pos_rank) %>%
     gt() %>%
     gt_theme_538() %>%
     tab_options(
@@ -1067,6 +1070,7 @@ stats_weekly %>%
     cols_label(
         week = "Week",
         total_points = "Weekly Points",
+        week_rank = "Weekly Points Rank",
         average_points = "Rolling Average Points",
         pos_rank = "Position Rank",
     ) %>%
@@ -1129,7 +1133,7 @@ stats_yearly %>%
            adj_pts_rank = round(rank(-average_points_adj, ties.method = "first"))) %>%
     ungroup() %>%
     filter(player_display_name == player$player_display_name) %>%
-    select(season, recent_team, games,
+    select(season, recent_team, games, vorp, std_dev,
            total_points, tot_pts_rank, average_points, avg_pts_rank,
            average_points_adj, adj_pts_rank) %>%
     arrange(season) %>%
@@ -1149,6 +1153,8 @@ stats_yearly %>%
         season = "Season",
         recent_team = "Team",
         games = "Games",
+        vorp = "VORP",
+        std_dev = "Standard Deviation",
         total_points = "Total Points",
         tot_pts_rank = "Total Points Rank",
         average_points = "Average Points",
@@ -1157,14 +1163,14 @@ stats_yearly %>%
         adj_pts_rank = "Adjusted Points Rank"
     ) %>%
     fmt_number(
-        columns = c(total_points, average_points, average_points_adj),
+        columns = c(total_points, average_points, average_points_adj, std_dev),
         decimals = 1
     )  %>%
     cols_width(
         columns = everything() ~ px(80)
     ) %>%
     tab_footnote(
-        "Adjusted points assumes replacement level performance for missed games"
+        "Adjusted averaeg points assumes replacement level performance for missed games"
     )
 
 
@@ -1207,7 +1213,7 @@ stats_yearly %>%
         columns = everything() ~ px(80)
     ) %>%
     tab_footnote(
-        "Adjusted points assumes replacement level performance for missed games"
+        "Adjusted average points assumes replacement level performance for missed games"
     )
 
     
