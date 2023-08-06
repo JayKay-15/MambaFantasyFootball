@@ -404,15 +404,15 @@ server <- function(input, output, session) {
     
     output$plot8 <- render_gt({
         stats_yearly %>%
-            group_by(season, position) %>%
-            mutate(avg_pts_rank = round(rank(-average_points, ties.method = "first")),
-                   tot_pts_rank = round(rank(-total_points, ties.method = "first")),
-                   adj_pts_rank = round(rank(-average_points_adj, ties.method = "first"))) %>%
-            ungroup() %>%
+            # group_by(season, position) %>%
+            # mutate(avg_pts_rank = round(rank(-average_points, ties.method = "first")),
+            #        tot_pts_rank = round(rank(-total_points, ties.method = "first")),
+            #        adj_pts_rank = round(rank(-average_points_adj, ties.method = "first"))) %>%
+            # ungroup() %>%
             filter(player_display_name == player()$player_display_name) %>%
             select(season, recent_team, games, vorp, std_dev,
-                   total_points, tot_pts_rank, average_points, avg_pts_rank,
-                   average_points_adj, adj_pts_rank) %>%
+                   total_points, tot_pos_rank, average_points, avg_pos_rank,
+                   average_points_adj, adj_pos_rank) %>%
             arrange(season) %>%
             gt() %>%
             gt_theme_538() %>%
@@ -433,11 +433,11 @@ server <- function(input, output, session) {
                 vorp = "VORP",
                 std_dev = "Standard Deviation",
                 total_points = "Total Points",
-                tot_pts_rank = "Total Points Rank",
+                tot_pos_rank = "Total Points Rank",
                 average_points = "Average Points",
-                avg_pts_rank = "Average Points Rank",
+                avg_pos_rank = "Average Points Rank",
                 average_points_adj = "Adjusted Average Points",
-                adj_pts_rank = "Adjusted Points Rank"
+                adj_pos_rank = "Adjusted Points Rank"
             ) %>%
             fmt_number(
                 columns = c(total_points, average_points, average_points_adj, std_dev),
