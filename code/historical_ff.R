@@ -16,7 +16,7 @@ library(DT)
 
 # pbp <- nflfastR::load_pbp(c(2013:2022))
 pbp_fantasy <- nflfastR::load_pbp(c(2018:2022))
-roster <- nflfastR::fast_scraper_roster(2022)
+roster <- nflfastR::fast_scraper_roster(c(2018:2022))
 pbp_fantasy <- pbp_fantasy %>%
     mutate(fantasy_season = if_else((season<=2020 & week<=16) |
                                         (season>2020 & week<=17), TRUE, FALSE)) %>%
@@ -1240,6 +1240,10 @@ stats_yearly %>%
 
 
 
+roster_pos <- roster %>%
+    select(gsis_id,position,full_name) %>%
+    filter(position %in% c("QB","RB","WR","TE") & season == selected_season) %>%
+    distinct()
 
 # HVO RB player app
 hvt_rb <- pbp_fantasy %>%
@@ -1278,7 +1282,7 @@ hvt_rb <- pbp_fantasy %>%
                  names_to = "hvt_type", values_to = "touch_pct") %>%
     filter(total_touches >= 150)
 
-# total HVOs
+# RB total HVOs
 hvt_rb %>%
     filter(
         hvt_type == "hvt_pct" &
@@ -1299,7 +1303,7 @@ hvt_rb %>%
           axis.title.x = element_blank()) +
     theme_bw()
 
-# HVOs by play type
+# RB HVOs by play type
 hvt_rb %>%
     filter(hvt_type %in% c("hvt_rush", "hvt_rec")) %>%
     ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = hvt_type)) +
@@ -1324,12 +1328,7 @@ hvt_rb %>%
 
 
 
-# HVO WR player app
-roster_pos <- roster %>%
-    select(gsis_id,position,full_name) %>%
-    filter(position %in% c("QB","RB","WR","TE")) %>%
-    distinct()
-
+# HVO WR/TE player app
 hvt_wr <- pbp_fantasy %>%
     filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
     left_join(roster_pos, by = c("receiver_id" = "gsis_id"), na_matches="never") %>%
@@ -1366,7 +1365,7 @@ hvt_wr <- pbp_fantasy %>%
                  names_to = "hvt_type", values_to = "touch_pct") %>%
     filter(total_pot_touches >= 75)
 
-# targets & carries inside the 10
+# WR/TE targets & carries inside the 10
 hvt_wr %>%
     ggplot(aes(touch_pct, reorder(player_name, touch_pct),
                fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
@@ -1385,7 +1384,7 @@ hvt_wr %>%
           axis.title.x = element_blank()) +
     theme_bw()
 
-# targets
+# WR/TE targets
 hvt_wr %>%
     ggplot(aes(tgt, reorder(player_name, tgt),
                fill = ifelse(player_name == player$player_display_name,
@@ -1405,11 +1404,6 @@ hvt_wr %>%
 
 
 # HVO QB player app
-roster_pos <- roster %>%
-    select(gsis_id,position,full_name) %>%
-    filter(position %in% c("QB","RB","WR","TE")) %>%
-    distinct()
-
 hvt_qb <- pbp_fantasy %>%
     filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
     left_join(roster_pos, by = c("passer_id" = "gsis_id"), na_matches="never") %>%
@@ -1445,7 +1439,8 @@ hvt_qb <- pbp_fantasy %>%
                  names_to = "hvt_type", values_to = "touch_pct") %>%
     filter(attempts >= 300)
 
-# total HVOs
+
+# QB total HVOs
 hvt_qb %>%
     filter(
         hvt_type == "hvt_pct" &
@@ -1466,11 +1461,11 @@ hvt_qb %>%
           axis.title.x = element_blank()) +
     theme_bw()
 
-# % HVOs
+# QB % HVOs
 hvt_qb %>%
     filter(
         hvt_type == "hvt_pct" &
-            (attempts >= 150 | player_name == player$player_display_name)) %>%
+            (attempts >= 300 | player_name == player$player_display_name)) %>%
     ggplot(aes(touch_pct, reorder(player_name, touch_pct),
                fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
     geom_col() +
@@ -1489,6 +1484,141 @@ hvt_qb %>%
     theme_bw()
 
 
+
+
+
+
+# position if else for app
+if (player$position == "QB") {
+    # QB total HVOs
+    hvt_qb %>%
+        filter(
+            hvt_type == "hvt_pct" &
+                (attempts >= 300 | player_name == player$player_display_name)) %>%
+        ggplot(aes(hvts, reorder(player_name, hvts),
+                   fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
+        geom_col() +
+        scale_fill_manual(values = c("Selected" = player$team_color,
+                                     "Not Selected" =  alpha("gray", 0.5))) +
+        labs(x = "High Value Opportunities",
+             y = "",
+             title = "Number of High Value Opportunities (min. 300 pass attempts)",
+             subtitle = "Pass Attempts Inside the Ten and Rushes",
+             caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+        guides(fill = "none") +
+        theme(axis.title.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.title.x = element_blank()) +
+        theme_bw()
+    
+    # QB % HVOs
+    hvt_qb %>%
+        filter(
+            hvt_type == "hvt_pct" &
+                (attempts >= 300 | player_name == player$player_display_name)) %>%
+        ggplot(aes(touch_pct, reorder(player_name, touch_pct),
+                   fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
+        geom_col() +
+        scale_fill_manual(values = c("Selected" = player$team_color,
+                                     "Not Selected" =  alpha("gray", 0.5))) +
+        scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+        labs(x = "High Value Opportunities",
+             y = "",
+             title = "Percent of High Value Opportunities (min. 300 pass attempts)",
+             subtitle = "Pass Attempts Inside the Ten and Rushes",
+             caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+        guides(fill = "none") +
+        theme(axis.title.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.title.x = element_blank()) +
+        theme_bw()
+    
+} else if (player$position == "RB") {
+    # RB total HVOs
+    hvt_rb %>%
+        filter(
+            hvt_type == "hvt_pct" &
+                (total_touches >= 150 | player_name == player$player_display_name)) %>%
+        ggplot(aes(hvts, reorder(player_name, hvts),
+                   fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
+        geom_col() +
+        scale_fill_manual(values = c("Selected" = player$team_color,
+                                     "Not Selected" =  alpha("gray", 0.5))) +
+        labs(x = "High Values Opportunities",
+             y = "",
+             title = "Number of High Value Opportunities (min. 150 total touches)",
+             subtitle = "Carries Inside the Ten and Receptions",
+             caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+        guides(fill = "none") +
+        theme(axis.title.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.title.x = element_blank()) +
+        theme_bw()
+    
+    # RB HVOs by play type
+    hvt_rb %>%
+        filter(hvt_type %in% c("hvt_rush", "hvt_rec")) %>%
+        ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = hvt_type)) +
+        geom_bar(stat = "identity", alpha = 0.3) +
+        geom_bar(
+            data = subset(hvt_rb, player_name == player$player_display_name &
+                              hvt_type %in% c("hvt_rush", "hvt_rec")),
+            stat = "identity") +
+        scale_fill_manual(values = c("hvt_rush" = player$team_color, "hvt_rec" = player$team_color2),
+                          labels=c("Rush", "Reception")) + 
+        scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+        labs(x = "Percent of Plays",
+             y = "",
+             fill = "Play Type",
+             title = "High Value Opportunities as Percentage of Total Touches (min. 150 total touches)",
+             caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+        theme(axis.title.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.title.x = element_blank()) +
+        theme_bw()
+    
+} else if (player$position %in% c("WR", "TE")) {
+    # WR/TE targets & carries inside the 10
+    hvt_wr %>%
+        ggplot(aes(touch_pct, reorder(player_name, touch_pct),
+                   fill = ifelse(player_name == player$player_display_name, "Selected", "Not Selected"))) +
+        geom_col() +
+        scale_fill_manual(values = c("Selected" = player$team_color,
+                                     "Not Selected" =  alpha("gray", 0.5))) +
+        scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+        labs(x = "Percent of High Value Opportunities",
+             y = "",
+             title = "Percentage of High Value Opportunities (min. 75 potential touches)",
+             subtitle = "Targets & Carries Inside the Ten", 
+             caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+        guides(fill = "none") +
+        theme(axis.title.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.title.x = element_blank()) +
+        theme_bw()
+    
+    # WR/TE targets
+    hvt_wr %>%
+        ggplot(aes(tgt, reorder(player_name, tgt),
+                   fill = ifelse(player_name == player$player_display_name,
+                                 "Selected", "Not Selected"))) +
+        geom_col() +
+        scale_x_continuous() +
+        scale_fill_manual(values = c("Selected" = player$team_color, "Not Selected" = alpha("gray", 0.5))) +
+        labs(x = "Targets",
+             y = "",
+             title = "Total Targets (min. 75 potential touches)",
+             caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+        guides(fill = "none") +
+        theme(axis.title.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.title.x = element_blank()) +
+        theme_bw()
+    
+} else {
+    # Handle the case when the player's position is not recognized
+    cat("Selected player's position is not recognized.")
+}
 
 
 
@@ -1548,9 +1678,6 @@ stats_adp %>%
          fill = "Player") +
     coord_flip() +
     theme_bw()
-
-
-
 
 
 
