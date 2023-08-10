@@ -45,7 +45,7 @@ hvt_qb <- pbp_fantasy %>%
               non_hvt_pct = non_hvts / total_touches) %>%
     pivot_longer(cols = c(hvt_pct, non_hvt_pct),
                  names_to = "hvt_type", values_to = "touch_pct") %>%
-    filter(attempts >= 300)
+    filter(attempts >= 400)
 
 # HVO RB player app
 hvt_rb <- pbp_fantasy %>%
@@ -82,7 +82,7 @@ hvt_rb <- pbp_fantasy %>%
               hvt_rush = ten_zone_rushes / total_touches) %>%
     pivot_longer(cols = c(hvt_pct, non_hvt_pct, hvt_rec, hvt_rush),
                  names_to = "hvt_type", values_to = "touch_pct") %>%
-    filter(total_touches >= 150)
+    filter(total_touches >= 200)
 
 # HVO WR/TE player app
 hvt_wr <- pbp_fantasy %>%
@@ -119,7 +119,7 @@ hvt_wr <- pbp_fantasy %>%
               hvt_pot_pct = hvt_pot / total_pot_touches) %>%
     pivot_longer(cols = c(hvt_pot_pct),
                  names_to = "hvt_type", values_to = "touch_pct") %>%
-    filter(total_pot_touches >= 75)
+    filter(total_pot_touches >= 100)
 
 # Server ----
 server <- function(input, output, session) {
@@ -135,9 +135,9 @@ server <- function(input, output, session) {
         updateSelectInput(session, "position1", selected=input$position2)
         selected_position(input$position2)
     })
-    observeEvent(input$position3, {
-        updateSelectInput(session, "position1", selected=input$position3)
-        selected_position(input$position3)
+    observeEvent(input$position2, {
+        updateSelectInput(session, "position3", selected=input$position2)
+        selected_position(input$position2)
     })
     
     
@@ -152,9 +152,9 @@ server <- function(input, output, session) {
         updateSelectInput(session, "player1", selected=input$player2)
         selected_player(input$player2)
     })
-    observeEvent(input$player3, {
-        updateSelectInput(session, "player1", selected=input$player3)
-        selected_player(input$player3)
+    observeEvent(input$player2, {
+        updateSelectInput(session, "player3", selected=input$player2)
+        selected_player(input$player2)
     })
     
     # Update the available players based on the selected position
@@ -166,7 +166,6 @@ server <- function(input, output, session) {
         updateSelectInput(session, "player1", choices = players, selected = players[1])
         updateSelectInput(session, "player2", choices = players, selected = players[1])
         updateSelectInput(session, "player3", choices = players, selected = players[1])
-        
     })
 
     
@@ -434,7 +433,7 @@ server <- function(input, output, session) {
             hvt_qb %>%
                 filter(
                     hvt_type == "hvt_pct" &
-                        (attempts >= 300 | player_name == player()$player_display_name)) %>%
+                        (attempts >= 400 | player_name == player()$player_display_name)) %>%
                 ggplot(aes(hvts, reorder(player_name, hvts),
                            fill = ifelse(player_name == player()$player_display_name,
                                          "Selected", "Not Selected"))) +
@@ -443,7 +442,7 @@ server <- function(input, output, session) {
                                              "Not Selected" =  alpha("gray", 0.5))) +
                 labs(x = "High Value Opportunities",
                      y = "",
-                     title = "Number of High Value Opportunities (min. 300 pass attempts)",
+                     title = "Number of High Value Opportunities (min. 400 pass attempts)",
                      subtitle = "Pass Attempts Inside the Ten and Rushes",
                      caption = "Figure: @MambaMetrics | Data: @nflfastR") +
                 guides(fill = "none") +
@@ -459,7 +458,7 @@ server <- function(input, output, session) {
             hvt_rb %>%
                 filter(
                     hvt_type == "hvt_pct" &
-                        (total_touches >= 150 | player_name == player()$player_display_name)) %>%
+                        (total_touches >= 200 | player_name == player()$player_display_name)) %>%
                 ggplot(aes(hvts, reorder(player_name, hvts),
                            fill = ifelse(player_name == player()$player_display_name,
                                          "Selected", "Not Selected"))) +
@@ -468,7 +467,7 @@ server <- function(input, output, session) {
                                              "Not Selected" =  alpha("gray", 0.5))) +
                 labs(x = "High Values Opportunities",
                      y = "",
-                     title = "Number of High Value Opportunities (min. 150 total touches)",
+                     title = "Number of High Value Opportunities (min. 200 total touches)",
                      subtitle = "Carries Inside the Ten and Receptions",
                      caption = "Figure: @MambaMetrics | Data: @nflfastR") +
                 guides(fill = "none") +
@@ -490,7 +489,7 @@ server <- function(input, output, session) {
                                              "Not Selected" = alpha("gray", 0.5))) +
                 labs(x = "Targets",
                      y = "",
-                     title = "Total Targets (min. 75 potential touches)",
+                     title = "Total Targets (min. 100 potential touches)",
                      caption = "Figure: @MambaMetrics | Data: @nflfastR") +
                 guides(fill = "none") +
                 theme(axis.title.y = element_blank(),
@@ -515,7 +514,7 @@ server <- function(input, output, session) {
             hvt_qb %>%
                 filter(
                     hvt_type == "hvt_pct" &
-                        (attempts >= 300 | player_name == player()$player_display_name)) %>%
+                        (attempts >= 400 | player_name == player()$player_display_name)) %>%
                 ggplot(aes(touch_pct, reorder(player_name, touch_pct),
                            fill = ifelse(player_name == player()$player_display_name,
                                          "Selected", "Not Selected"))) +
@@ -525,7 +524,7 @@ server <- function(input, output, session) {
                 scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
                 labs(x = "High Value Opportunities",
                      y = "",
-                     title = "Percent of High Value Opportunities (min. 300 pass attempts)",
+                     title = "Percent of High Value Opportunities (min. 400 pass attempts)",
                      subtitle = "Pass Attempts Inside the Ten and Rushes",
                      caption = "Figure: @MambaMetrics | Data: @nflfastR") +
                 guides(fill = "none") +
@@ -552,7 +551,7 @@ server <- function(input, output, session) {
                 labs(x = "Percent of Plays",
                      y = "",
                      fill = "Play Type",
-                     title = "High Value Opportunities as Percentage of Total Touches (min. 150 total touches)",
+                     title = "High Value Opportunities as Percentage of Total Touches (min. 200 total touches)",
                      caption = "Figure: @MambaMetrics | Data: @nflfastR") +
                 theme(axis.title.y = element_blank(),
                       axis.ticks.y = element_blank(),
@@ -572,7 +571,7 @@ server <- function(input, output, session) {
                 scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
                 labs(x = "Percent of High Value Opportunities",
                      y = "",
-                     title = "Percentage of High Value Opportunities (min. 75 potential touches)",
+                     title = "Percentage of High Value Opportunities (min. 100 potential touches)",
                      subtitle = "Targets & Carries Inside the Ten",
                      caption = "Figure: @MambaMetrics | Data: @nflfastR") +
                 guides(fill = "none") +
@@ -618,10 +617,10 @@ ui <- fluidPage(
                              mainPanel(
                                  fluidRow(
                                      column(12, plotOutput("plot2", height = 300)),
-                                     h3(textOutput("caption"), align = "center")
+                                     h3(textOutput(""), align = "center")
                                  ),
                                  fluidRow(
-                                     column(12, plotOutput("plot3", height = 300))
+                                     column(12, plotOutput("plot3", height = 400))
                                  )
                              )
                          )
@@ -662,10 +661,10 @@ ui <- fluidPage(
                              mainPanel(
                                  fluidRow(
                                      column(12, plotOutput("plot7", height = 300)),
-                                     h3(textOutput("caption"), align = "center")
+                                     h3(textOutput(" "), align = "center")
                                  ),
                                  fluidRow(
-                                     column(12, plotOutput("plot8", height = 300))
+                                     column(12, plotOutput("plot8"))
                                  )
                              )
                          )
