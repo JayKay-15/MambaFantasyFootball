@@ -736,7 +736,7 @@ hvt_wr %>%
 
 # Select player
 player <- stats_yearly %>%
-    filter(player_display_name == "Dak Prescott" & season == max(season)) %>%
+    filter(player_display_name == "Tony Pollard" & season == max(season)) %>%
     select(player_display_name, position, recent_team) %>%
     left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
 
@@ -1241,13 +1241,13 @@ stats_yearly %>%
 
 
 roster_pos <- roster %>%
-    select(gsis_id,position,full_name) %>%
     filter(position %in% c("QB","RB","WR","TE") & season == selected_season) %>%
+    select(gsis_id,position,full_name) %>%
     distinct()
 
 # HVO RB player app
 hvt_rb <- pbp_fantasy %>%
-    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
+    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == selected_season) %>%
     left_join(roster_pos, by = c("receiver_id" = "gsis_id"), na_matches="never") %>%
     rename(receiver_full_name = full_name,
            receiver_position = position) %>%
@@ -1482,6 +1482,36 @@ hvt_qb %>%
           axis.ticks.y = element_blank(),
           axis.title.x = element_blank()) +
     theme_bw()
+
+
+
+
+
+
+hvt_rb %>%
+    filter(
+        hvt_type == "hvt_pct" &
+            (total_touches >= 150 | player_name == player$player_display_name)) %>%
+    left_join(stats_yearly %>%
+                  filter(season == selected_season) %>%
+                  select(player_id, total_points), by = "player_id"
+              ) %>%
+    ggplot(aes(total_touches, total_points,
+               color = ifelse(player_name == player$player_display_name,
+                             "Selected", "Not Selected"),
+               label = player_name)) +
+    geom_point() +
+    geom_text_repel(show.legend = FALSE) +
+    geom_smooth(method = "lm", se = FALSE) +
+    scale_color_manual(values = c("Selected" = player$team_color,
+                                 "Not Selected" =  alpha("gray", 1))) +
+    labs(x = "Total Touches",
+         y = "Total Points",
+         title = "High-Value Opportunities vs. Total Points",
+         caption = "Figure: @MambaMetrics | Data: @nflfastR") +
+    theme_bw()
+
+
 
 
 
