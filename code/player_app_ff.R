@@ -23,6 +23,17 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
         select(season, gsis_id, position, full_name) %>%
         distinct()
     
+    adp <- dplyr::tbl(DBI::dbConnect(RSQLite::SQLite(), "../nfl_sql_db/nfl_pbp_db"), "adp") %>% 
+        collect() %>%
+        mutate(
+            name = case_when(
+                name == "LeVeon Bell" ~ "Le'Veon Bell",
+                name == "D.K. Metcalf" ~ "DK Metcalf",
+                TRUE ~ name
+            )
+        ) %>%
+        arrange(overall)
+    
     stats_yr <- data.frame()
     stats_wk <- data.frame()
     
@@ -68,7 +79,7 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
         int_adj <- -1
         fum_adj <- -1
         
-    } else if (scroing == "standard") {
+    } else if (scoring == "standard") {
         
         pass_yds_adj <- 0.04
         pass_tds_adj <- 4
@@ -98,7 +109,6 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
     }
     
     
-
     # weekly fantasy points
     stats_weekly <<- stats_wk %>%
         filter(position %in% c("QB","RB","WR","TE")) %>%
@@ -132,7 +142,7 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
         group_by(season,player_display_name,position) %>%
         summarise(games_played = n(),
                   average_points = mean(total_points),
-                  std_dev = sd(total_points),
+                  std_dev = round(sd(total_points),1),
                   total_points = sum(total_points)
         ) %>%
         arrange(desc(total_points)) %>%
@@ -144,7 +154,7 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
         # mutate(games_adj = round((if_else(season <= 2020, (games/15),
         #                                   (games/16))*16),0),
         mutate(total_points =
-                   case_when(
+                   round(case_when(
                        position == "QB" ~ (passing_yards*pass_yds_adj + passing_tds*pass_tds_adj
                                            + rushing_yards*rush_yds_adj + rushing_tds*rush_tds_adj
                                            + interceptions*int_adj + sack_fumbles_lost*fum_adj
@@ -160,8 +170,8 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
                        position == "TE" ~ (rushing_yards*rush_yds_adj + rushing_tds*rush_tds_adj
                                            + receiving_yards*rec_yds_adj + receiving_tds*rec_tds_adj
                                            + receptions*rec_adj + rushing_fumbles_lost*fum_adj
-                                           + receiving_fumbles_lost*fum_adj)),
-               average_points = total_points/games,
+                                           + receiving_fumbles_lost*fum_adj)),1),
+               average_points = round(total_points/games,1),
                touches = carries + receptions,
                pot_touches = carries + targets,
                points_per_touch = total_points/touches,
@@ -835,9 +845,21 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
     }
     
     
-    stats_yearly <<- stats_yearly %>%
+    stats_yearly <- stats_yearly %>%
         left_join(stats_adj_final, by = c("player_id" = "player_id", "season" = "season"))
-
+    
+    
+    # ADP
+    stats_yearly <<- stats_yearly %>%
+        left_join(adp %>% select(name, season, overall), 
+                  by = c("player_display_name" = "name", "season" = "season")) %>%
+        mutate(adp = coalesce(overall, 192)) %>%
+        group_by(season, position) %>%
+        mutate(adp_pos_rank = dense_rank(adp)) %>%
+        ungroup() %>%
+        mutate(performance_diff = adp_pos_rank - tot_pos_rank) %>%
+        select(-overall)
+    
     
     # HVO QB player app
     hvo_qb <<- pbp_fantasy %>%
@@ -951,7 +973,7 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
     
 }
 
-ff_stats_app()
+ff_stats_app(scoring = "mfl", league = "mfl")
 
 # Fantasy Football Shiny App ----
 stats_yearly <- stats_yearly %>% arrange(desc(season), player_display_name)
