@@ -1137,7 +1137,11 @@ server <- function(input, output, session) {
                 decimals = 1
             )  %>%
             cols_width(
-                columns = everything() ~ px(78)
+                columns = c(season) ~ px(55),
+                columns = c(recent_team, games, vorp) ~ px(52),
+                columns = std_dev ~ px(75),
+                columns = c(total_points, tot_pos_rank, average_points, avg_pos_rank) ~ px(62),
+                columns = c(performance_diff) ~ px(55)
             ) %>%
             tab_footnote(
                 "Adjusted average points assumes replacement level performance for missed games"
@@ -1158,7 +1162,34 @@ server <- function(input, output, session) {
             hvo_qb %>%
                 filter(hvo_type == "hvo_pct" & player_name == player()$player_display_name) %>%
                 select(season, total_touches, hvo, touch_pct) %>%
-                gt()
+                gt() %>%
+                gt_theme_538() %>%
+                tab_options(
+                    heading.align = "center",
+                ) %>%
+                tab_header(
+                    title = "High Value Opportunities by Season",
+                    subtitle = ""
+                ) %>%
+                cols_align(
+                    "center"
+                ) %>%
+                cols_label(
+                    season = "Season",
+                    total_touches = "Total Touches",
+                    hvo = "High Value Opps",
+                    touch_pct = "HVO%"
+                ) %>%
+                fmt_percent(
+                    columns = touch_pct,
+                    decimals = 1
+                )  %>%
+                cols_width(
+                    columns = everything() ~ px(70)
+                ) %>%
+                tab_footnote(
+                    "Figure: @MambaMetrics | Data: @nflfastR"
+                )
             
             
         } else if (player()$position == "RB") {
@@ -1167,7 +1198,34 @@ server <- function(input, output, session) {
             hvo_rb %>%
                 filter(hvo_type == "hvo_pct" & player_name == player()$player_display_name) %>%
                 select(season, total_touches, hvo, touch_pct) %>%
-                gt()
+                gt() %>%
+                gt_theme_538() %>%
+                tab_options(
+                    heading.align = "center",
+                ) %>%
+                tab_header(
+                    title = "High Value Opportunities by Season",
+                    subtitle = ""
+                ) %>%
+                cols_align(
+                    "center"
+                ) %>%
+                cols_label(
+                    season = "Season",
+                    total_touches = "Total Touches",
+                    hvo = "High Value Opps",
+                    touch_pct = "HVO%"
+                ) %>%
+                fmt_percent(
+                    columns = touch_pct,
+                    decimals = 1
+                )  %>%
+                cols_width(
+                    columns = everything() ~ px(70)
+                ) %>%
+                tab_footnote(
+                    "Figure: @MambaMetrics | Data: @nflfastR"
+                )
             
         } else if (player()$position %in% c("WR", "TE")) {
             
@@ -1175,7 +1233,30 @@ server <- function(input, output, session) {
             hvo_wr %>%
                 filter(player_name == player()$player_display_name) %>%
                 select(season, total_pot_touches, hvo_pot, tgt) %>%
-                gt()
+                gt() %>%
+                gt_theme_538() %>%
+                tab_options(
+                    heading.align = "center",
+                ) %>%
+                tab_header(
+                    title = "High Value Opportunities by Season",
+                    subtitle = ""
+                ) %>%
+                cols_align(
+                    "center"
+                ) %>%
+                cols_label(
+                    season = "Season",
+                    total_pot_touches = "Total Touches",
+                    hvo_pot = "High Value Opps",
+                    tgt = "Targets"
+                ) %>%
+                cols_width(
+                    columns = everything() ~ px(70)
+                ) %>%
+                tab_footnote(
+                    "Figure: @MambaMetrics | Data: @nflfastR"
+                )
             
         } else {
             # Handle the case when the player's position is not recognized
@@ -1226,6 +1307,53 @@ ui <- fluidPage(
 
 # Run the Shiny app
 shinyApp(ui, server)
+
+
+
+
+stats_weekly %>%
+    group_by(season, week, position) %>%
+    mutate(week_rank = if_else(total_points == 0,
+                               NA, rank(-total_points, ties.method = "first"))) %>%
+    ungroup() %>%
+    group_by(season, recent_team, player_display_name) %>%
+    summarise(top_6 = sum(if_else(week_rank <= 6, 1, 0), na.rm = TRUE),
+              top_12 = sum(if_else(week_rank <= 12, 1, 0), na.rm = TRUE),
+              top_18 = sum(if_else(week_rank <= 18, 1, 0), na.rm = TRUE),
+              top_24 = sum(if_else(week_rank <= 24, 1, 0), na.rm = TRUE),
+              games = n()) %>%
+    ungroup() %>%
+    filter(player_display_name == "CeeDee Lamb") %>%
+    select(season, recent_team, games, top_6, top_12, top_18, top_24) %>%
+    gt() %>%
+    gt_theme_538() %>%
+    tab_options(
+        heading.align = "center",
+    ) %>%
+    tab_header(
+        title = "Fantasy Finishes by Season",
+        subtitle = ""
+    ) %>%
+    cols_align(
+        "center"
+    ) %>%
+    cols_label(
+        season = "Season",
+        recent_team = "Team",
+        games = "Games",
+        top_6 = "Top 6",
+        top_12 = "Top 12",
+        top_18 = "Top 18",
+        top_24 = "Top 24"
+    ) %>%
+    cols_width(
+        columns = everything() ~ px(60)
+    ) %>%
+    tab_footnote(
+        "Figure: @MambaMetrics | Data: @nflfastR"
+    )
+
+
 
 
 
