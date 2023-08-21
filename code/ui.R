@@ -2,7 +2,7 @@ library(shiny)
 library(tidyverse)
 
 # UI ----
-ui <- fluidPage(
+fluidPage(
     
     theme = bslib::bs_theme(bootswatch = "darkly"),
     
