@@ -1,7 +1,6 @@
 # Fantasy Football Player App
 library(shiny)
 library(tidyverse)
-library(knitr)
 library(nflfastR)
 library(ggrepel)
 library(ggthemes)
@@ -989,7 +988,7 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
 }
 ff_stats_app()
 
-ff_stats_app(scoring = "mfl", league = "mfl")
+# ff_stats_app(scoring = "mfl", league = "mfl")
 
 # Fantasy Football Shiny App ----
 stats_yearly <- stats_yearly %>% arrange(desc(season), player_display_name)
@@ -1107,7 +1106,8 @@ server <- function(input, output, session) {
                 sec.axis = sec_axis(~., breaks = seq(0, max(stats_weekly$total_points), 5),
                                     name = "Average Points", labels = function(x) round(x, 2))) +
             scale_x_continuous(breaks = seq(min(stats_weekly$week), max(stats_weekly$week), 1)) +
-            theme_bw()
+            theme_bw() + 
+            theme(legend.position="bottom")
         
     })
     
