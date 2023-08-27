@@ -13,7 +13,15 @@ library(DT)
 # Fantasy App Function ----
 ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex10") {
     
-    pbp_fantasy <- nflfastR::load_pbp(seasons) %>%
+    # pbp_fantasy <- nflfastR::load_pbp(seasons) %>%
+    #     mutate(fantasy_season = if_else((season<=2020 & week<=16) |
+    #                                         (season>2020 & week<=17), TRUE, FALSE)) %>%
+    #     filter(fantasy_season == TRUE)
+    
+    db <- DBI::dbConnect(RSQLite::SQLite(), "../nfl_sql_db/nfl_pbp_db")
+    
+    pbp_fantasy <- RSQLite::dbGetQuery(db,
+                                       'SELECT * FROM nflfastR_pbp WHERE season >= 2018') %>%
         mutate(fantasy_season = if_else((season<=2020 & week<=16) |
                                             (season>2020 & week<=17), TRUE, FALSE)) %>%
         filter(fantasy_season == TRUE)
@@ -33,6 +41,8 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
             )
         ) %>%
         arrange(overall)
+    
+    RSQLite::dbDisconnect(db)
     
     stats_yr <- data.frame()
     stats_wk <- data.frame()
@@ -977,6 +987,7 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
                      names_to = "hvo_type", values_to = "touch_pct")
     
 }
+ff_stats_app()
 
 ff_stats_app(scoring = "mfl", league = "mfl")
 
@@ -1352,8 +1363,5 @@ stats_weekly %>%
     tab_footnote(
         "Figure: @MambaMetrics | Data: @nflfastR"
     )
-
-
-
 
 
