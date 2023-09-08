@@ -922,6 +922,7 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
         mutate(ten_zone_rush = if_else(yardline_100 <= 10 & rush_attempt == 1, 1, 0),
                ten_zone_pass = if_else(yardline_100 <= 10 & pass_attempt == 1 & sack == 0, 1, 0),
                ten_zone_rec = if_else(yardline_100 <= 10 & complete_pass == 1, 1, 0),
+               tgt = if_else(complete_pass == 1 | incomplete_pass == 1, 1, 0),
                field_touch = case_when(
                    yardline_100 <= 100 & yardline_100 >= 81 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_100_81",
                    yardline_100 <= 80 & yardline_100 >= 61 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_80_61",
@@ -942,12 +943,13 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
                   hvo_pct = hvo / total_touches,
                   non_hvo_pct = non_hvo / total_touches,
                   hvo_rec = receptions / total_touches,
-                  hvo_rush = ten_zone_rushes / total_touches) %>%
+                  hvo_rush = ten_zone_rushes / total_touches,
+                  tgt = sum(tgt)) %>%
         ungroup() %>%
         pivot_longer(cols = c(hvo_pct, non_hvo_pct, hvo_rec, hvo_rush),
                      names_to = "hvo_type", values_to = "touch_pct")
     
-    # HVO WR/TE player app
+    # HVO WR player app
     hvo_wr <<- pbp_fantasy %>%
         filter(season_type == "REG", down <= 4, play_type != "no_play") %>%
         left_join(roster_pos, by = c("receiver_id" = "gsis_id", "season" = "season"),
@@ -970,6 +972,44 @@ ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex
                    yardline_100 <= 20 & yardline_100 >= 0 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_20_1",
                    TRUE ~ "other")) %>%
         filter(rusher_position == "WR" | receiver_position == "WR") %>%
+        mutate(player_name = if_else(is.na(rusher_full_name), receiver_full_name, rusher_full_name),
+               player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
+        group_by(season, player_name, player_id) %>%
+        summarize(rush_attempts = sum(rush_attempt),
+                  ten_zone_rushes = sum(ten_zone_rush),
+                  tgt = sum(tgt),
+                  ten_zone_tgt = sum(ten_zone_tgt),
+                  adot = as.numeric(mean(air_yards, na.rm = T)),
+                  total_pot_touches = sum(rush_attempt) + sum(tgt),
+                  hvo_pot = ten_zone_tgt + ten_zone_rushes,
+                  hvo_pot_pct = hvo_pot / total_pot_touches) %>%
+        ungroup() %>%
+        pivot_longer(cols = c(hvo_pot_pct),
+                     names_to = "hvo_type", values_to = "touch_pct")
+    
+    # HVO TE player app
+    hvo_te <<- pbp_fantasy %>%
+        filter(season_type == "REG", down <= 4, play_type != "no_play") %>%
+        left_join(roster_pos, by = c("receiver_id" = "gsis_id", "season" = "season"),
+                  na_matches="never") %>%
+        rename(receiver_full_name = full_name,
+               receiver_position = position) %>%
+        left_join(roster_pos, by = c("rusher_id" = "gsis_id", "season" = "season"),
+                  na_matches="never") %>%
+        rename(rusher_full_name = full_name,
+               rusher_position = position) %>%
+        mutate(ten_zone_rush = if_else(yardline_100 <= 10 & rush_attempt == 1, 1, 0),
+               ten_zone_rec = if_else(yardline_100 <= 10 & complete_pass == 1, 1, 0),
+               tgt = if_else(complete_pass == 1 | incomplete_pass == 1, 1, 0),
+               ten_zone_tgt = if_else(yardline_100 <= 10 & (complete_pass == 1 | incomplete_pass == 1), 1, 0),
+               field_touch = case_when(
+                   yardline_100 <= 100 & yardline_100 >= 81 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_100_81",
+                   yardline_100 <= 80 & yardline_100 >= 61 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_80_61",
+                   yardline_100 <= 60 & yardline_100 >= 41 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_60_41",
+                   yardline_100 <= 40 & yardline_100 >= 21 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_40_21",
+                   yardline_100 <= 20 & yardline_100 >= 0 & (rush_attempt == 1 | complete_pass == 1) ~ "touch_20_1",
+                   TRUE ~ "other")) %>%
+        filter(rusher_position == "TE" | receiver_position == "TE") %>%
         mutate(player_name = if_else(is.na(rusher_full_name), receiver_full_name, rusher_full_name),
                player_id = if_else(is.na(rusher_player_id), receiver_player_id, rusher_player_id)) %>%
         group_by(season, player_name, player_id) %>%
@@ -1059,6 +1099,57 @@ server <- function(input, output, session) {
             select(player_display_name, position, recent_team) %>%
             left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
     })
+    
+    pal_hex <- c("#762a83", "#af8dc3", "#e7d4e8", "#f7f7f7",
+                 "#d9f0d3", "#7fbf7b", "#1b7837")
+    
+    finishes_pct_tbl <- reactive({
+        stats_weekly %>%
+            filter(position == selected_position()) %>%
+            group_by(season, week, position) %>%
+            mutate(week_rank = if_else(total_points == 0,
+                                       NA, rank(-total_points, ties.method = "first"))) %>%
+            ungroup() %>%
+            group_by(season, recent_team, position, player_display_name) %>%
+            summarise(top_6 = sum(if_else(week_rank <= 6, 1, 0), na.rm = TRUE),
+                      top_12 = sum(if_else(week_rank <= 12, 1, 0), na.rm = TRUE),
+                      top_18 = sum(if_else(week_rank <= 18, 1, 0), na.rm = TRUE),
+                      top_24 = sum(if_else(week_rank <= 24, 1, 0), na.rm = TRUE),
+                      games = n()) %>%
+            ungroup() %>%
+            mutate(across(top_6:top_24, na_if, 0))
+    })
+    
+    stats_pct_tbl <- reactive({
+        stats_yearly %>%
+            select(season, position, vorp, std_dev,
+                   total_points, tot_pos_rank, average_points, avg_pos_rank,
+                   performance_diff) %>%
+            filter(position == selected_position()) %>%
+            mutate(across(vorp:performance_diff, na_if, 0))
+    })
+    
+    # finishes_pct_tbl <- stats_weekly %>%
+    #     filter(position == selected_position()) %>%
+    #     group_by(season, week, position) %>%
+    #     mutate(week_rank = if_else(total_points == 0,
+    #                                NA, rank(-total_points, ties.method = "first"))) %>%
+    #     ungroup() %>%
+    #     group_by(season, recent_team, position, player_display_name) %>%
+    #     summarise(top_6 = sum(if_else(week_rank <= 6, 1, 0), na.rm = TRUE),
+    #               top_12 = sum(if_else(week_rank <= 12, 1, 0), na.rm = TRUE),
+    #               top_18 = sum(if_else(week_rank <= 18, 1, 0), na.rm = TRUE),
+    #               top_24 = sum(if_else(week_rank <= 24, 1, 0), na.rm = TRUE),
+    #               games = n()) %>%
+    #     ungroup() %>%
+    #     mutate(across(top_6:top_24, na_if, 0))
+
+    # stats_pct_tbl <- stats_yearly %>%
+    #     select(season, position, vorp, std_dev,
+    #            total_points, tot_pos_rank, average_points, avg_pos_rank,
+    #            performance_diff) %>%
+    #     filter(position == selected_position()) %>%
+    #     mutate(across(vorp:performance_diff, na_if, 0))
 
     # week and average points by week
     output$plot1 <- renderPlot({
@@ -1154,8 +1245,20 @@ server <- function(input, output, session) {
                 columns = c(total_points, tot_pos_rank, average_points, avg_pos_rank) ~ px(62),
                 columns = c(performance_diff) ~ px(55)
             ) %>%
-            tab_footnote(
-                "Adjusted average points assumes replacement level performance for missed games"
+            gt_color_rows(
+                vorp, 
+                palette = pal_hex, 
+                domain = range(stats_pct_tbl() %>% pull(vorp), na.rm = T)
+            ) %>%
+            gt_color_rows(
+                total_points, 
+                palette = pal_hex, 
+                domain = range(stats_pct_tbl() %>% pull(total_points), na.rm = T)
+            ) %>%
+            gt_color_rows(
+                average_points, 
+                palette = pal_hex, 
+                domain = range(stats_pct_tbl() %>% pull(average_points), na.rm = T)
             ) %>%
             tab_footnote(
                 "Figure: @MambaMetrics | Data: @nflfastR"
@@ -1169,10 +1272,13 @@ server <- function(input, output, session) {
         # opportunities by position
         if (player()$position == "QB") {
             
+            qb_pct_tbl <- hvo_qb %>%
+                select(season, attempts, rush_attempts, hvo)
+            
             # QB total HVOs
             hvo_qb %>%
                 filter(hvo_type == "hvo_pct" & player_name == player()$player_display_name) %>%
-                select(season, total_touches, hvo, touch_pct) %>%
+                select(season, attempts, rush_attempts, hvo) %>%
                 gt() %>%
                 gt_theme_538() %>%
                 tab_options(
@@ -1187,16 +1293,27 @@ server <- function(input, output, session) {
                 ) %>%
                 cols_label(
                     season = "Season",
-                    total_touches = "Total Touches",
-                    hvo = "High Value Opps",
-                    touch_pct = "HVO%"
+                    attempts = "Pass ATT",
+                    rush_attempts = "Rush ATT",
+                    hvo = "High Value Opps"
                 ) %>%
-                fmt_percent(
-                    columns = touch_pct,
-                    decimals = 1
-                )  %>%
                 cols_width(
                     columns = everything() ~ px(70)
+                ) %>%
+                gt_color_rows(
+                    attempts, 
+                    palette = pal_hex, 
+                    domain = range(qb_pct_tbl %>% pull(attempts), na.rm = T)
+                ) %>%
+                gt_color_rows(
+                    rush_attempts, 
+                    palette = pal_hex, 
+                    domain = range(qb_pct_tbl %>% pull(rush_attempts), na.rm = T)
+                ) %>%
+                gt_color_rows(
+                    hvo, 
+                    palette = pal_hex, 
+                    domain = range(qb_pct_tbl %>% pull(hvo), na.rm = T)
                 ) %>%
                 tab_footnote(
                     "Figure: @MambaMetrics | Data: @nflfastR"
@@ -1205,10 +1322,13 @@ server <- function(input, output, session) {
             
         } else if (player()$position == "RB") {
             
+            rb_pct_tbl <- hvo_rb %>%
+                select(season, total_touches, hvo, tgt)
+            
             # RB total HVOs
             hvo_rb %>%
                 filter(hvo_type == "hvo_pct" & player_name == player()$player_display_name) %>%
-                select(season, total_touches, hvo, touch_pct) %>%
+                select(season, total_touches, hvo, tgt) %>%
                 gt() %>%
                 gt_theme_538() %>%
                 tab_options(
@@ -1225,25 +1345,41 @@ server <- function(input, output, session) {
                     season = "Season",
                     total_touches = "Total Touches",
                     hvo = "High Value Opps",
-                    touch_pct = "HVO%"
+                    tgt = "Targets",
                 ) %>%
-                fmt_percent(
-                    columns = touch_pct,
-                    decimals = 1
-                )  %>%
                 cols_width(
                     columns = everything() ~ px(70)
+                ) %>%
+                gt_color_rows(
+                    total_touches, 
+                    palette = pal_hex, 
+                    domain = range(rb_pct_tbl %>% pull(total_touches), na.rm = T)
+                ) %>%
+                gt_color_rows(
+                    hvo, 
+                    palette = pal_hex, 
+                    domain = range(rb_pct_tbl %>% pull(hvo), na.rm = T)
+                ) %>%
+                gt_color_rows(
+                    tgt, 
+                    palette = pal_hex, 
+                    domain = range(rb_pct_tbl %>% pull(tgt), na.rm = T)
                 ) %>%
                 tab_footnote(
                     "Figure: @MambaMetrics | Data: @nflfastR"
                 )
             
-        } else if (player()$position %in% c("WR", "TE")) {
+        } else if (player()$position == "WR") {
             
-            # WR/TE targets
+            wr_pct_tbl <- hvo_wr %>%
+                mutate(adot = round(adot, 1)) %>%
+                select(season, adot, tgt, hvo_pot)
+            
+            # WR targets
             hvo_wr %>%
                 filter(player_name == player()$player_display_name) %>%
-                select(season, total_pot_touches, hvo_pot, tgt) %>%
+                mutate(adot = round(adot, 1)) %>%
+                select(season, adot, tgt, hvo_pot) %>%
                 gt() %>%
                 gt_theme_538() %>%
                 tab_options(
@@ -1258,12 +1394,79 @@ server <- function(input, output, session) {
                 ) %>%
                 cols_label(
                     season = "Season",
-                    total_pot_touches = "Total Touches",
-                    hvo_pot = "High Value Opps",
-                    tgt = "Targets"
+                    adot = "aDOT",
+                    tgt = "Targets",
+                    hvo_pot = "High Value Opps"
                 ) %>%
                 cols_width(
                     columns = everything() ~ px(70)
+                ) %>%
+                gt_color_rows(
+                    adot, 
+                    palette = pal_hex, 
+                    domain = range(wr_pct_tbl %>% pull(adot), na.rm = T)
+                ) %>%
+                gt_color_rows(
+                    tgt, 
+                    palette = pal_hex, 
+                    domain = range(wr_pct_tbl %>% pull(tgt), na.rm = T)
+                ) %>%
+                gt_color_rows(
+                    hvo_pot, 
+                    palette = pal_hex, 
+                    domain = range(wr_pct_tbl %>% pull(hvo_pot), na.rm = T)
+                ) %>%
+                tab_footnote(
+                    "Figure: @MambaMetrics | Data: @nflfastR"
+                )
+            
+        } else if (player()$position == "TE") {
+            
+            te_pct_tbl <- hvo_te %>%
+                filter(tgt >= 25) %>%
+                mutate(adot = round(adot, 1)) %>%
+                select(season, adot, tgt, hvo_pot)
+            
+            # TE targets
+            hvo_te %>%
+                filter(player_name == player()$player_display_name) %>%
+                mutate(adot = round(adot, 1)) %>%
+                select(season, adot, tgt, hvo_pot) %>%
+                gt() %>%
+                gt_theme_538() %>%
+                tab_options(
+                    heading.align = "center",
+                ) %>%
+                tab_header(
+                    title = "High Value Opportunities by Season",
+                    subtitle = ""
+                ) %>%
+                cols_align(
+                    "center"
+                ) %>%
+                cols_label(
+                    season = "Season",
+                    adot = "aDOT",
+                    tgt = "Targets",
+                    hvo_pot = "High Value Opps"
+                ) %>%
+                cols_width(
+                    columns = everything() ~ px(70)
+                ) %>%
+                gt_color_rows(
+                    adot, 
+                    palette = pal_hex, 
+                    domain = range(te_pct_tbl %>% pull(adot), na.rm = T)
+                ) %>%
+                gt_color_rows(
+                    tgt, 
+                    palette = pal_hex, 
+                    domain = range(te_pct_tbl %>% pull(tgt), na.rm = T)
+                ) %>%
+                gt_color_rows(
+                    hvo_pot, 
+                    palette = pal_hex, 
+                    domain = range(te_pct_tbl %>% pull(hvo_pot), na.rm = T)
                 ) %>%
                 tab_footnote(
                     "Figure: @MambaMetrics | Data: @nflfastR"
@@ -1273,6 +1476,74 @@ server <- function(input, output, session) {
             # Handle the case when the player's position is not recognized
             cat("Selected player's position is not recognized.")
         }
+        
+    })
+    
+    # finishes by season
+    output$plot4 <- render_gt({
+        stats_weekly %>%
+            group_by(season, week, position) %>%
+            mutate(week_rank = if_else(total_points == 0,
+                                       NA, rank(-total_points, ties.method = "first"))) %>%
+            ungroup() %>%
+            group_by(season, position, recent_team, player_display_name) %>%
+            summarise(top_6 = sum(if_else(week_rank <= 6, 1, 0), na.rm = TRUE),
+                      top_12 = sum(if_else(week_rank <= 12, 1, 0), na.rm = TRUE),
+                      top_18 = sum(if_else(week_rank <= 18, 1, 0), na.rm = TRUE),
+                      top_24 = sum(if_else(week_rank <= 24, 1, 0), na.rm = TRUE),
+                      games = n()) %>%
+            ungroup() %>%
+            filter(player_display_name == player()$player_display_name) %>%
+            select(season, recent_team, games, top_6, top_12, top_18, top_24) %>%
+            gt() %>%
+            gt_theme_538() %>%
+            tab_options(
+                heading.align = "center",
+            ) %>%
+            tab_header(
+                title = "Fantasy Finishes by Season",
+                subtitle = ""
+            ) %>%
+            cols_align(
+                "center"
+            ) %>%
+            cols_label(
+                season = "Season",
+                recent_team = "Team",
+                games = "Games",
+                top_6 = "Top 6",
+                top_12 = "Top 12",
+                top_18 = "Top 18",
+                top_24 = "Top 24"
+            ) %>%
+            cols_width(
+                columns = season ~ px(62),
+                columns = c(recent_team,games) ~ px(58),
+                columns = c(top_6,top_12,top_18,top_24) ~ px(55)
+            ) %>%
+            gt_color_rows(
+                top_6, 
+                palette = pal_hex, 
+                domain = range(finishes_pct_tbl() %>% pull(top_6), na.rm = T)
+            ) %>%
+            gt_color_rows(
+                top_12, 
+                palette = pal_hex, 
+                domain = range(finishes_pct_tbl() %>% pull(top_12), na.rm = T)
+            ) %>%
+            gt_color_rows(
+                top_18, 
+                palette = pal_hex, 
+                domain = range(finishes_pct_tbl() %>% pull(top_18), na.rm = T)
+            ) %>%
+            gt_color_rows(
+                top_24, 
+                palette = pal_hex, 
+                domain = range(finishes_pct_tbl() %>% pull(top_24), na.rm = T)
+            ) %>%
+            tab_footnote(
+                "Figure: @MambaMetrics | Data: @nflfastR"
+            )
         
     })
 
@@ -1299,6 +1570,7 @@ ui <- fluidPage(
                                  selectInput("year", "Select Season:",
                                              choices = NULL,
                                              selected = max(stats_yearly$season)),
+                                 gt_output("plot4"),
                                  width = 4
                              ),
                              mainPanel(
@@ -1320,48 +1592,7 @@ ui <- fluidPage(
 shinyApp(ui, server)
 
 
+# save(hvo_qb, hvo_rb, hvo_wr, hvo_te, stats_weekly, stats_yearly, 
+#      file = "ff_player_app.RData")
 
-
-stats_weekly %>%
-    group_by(season, week, position) %>%
-    mutate(week_rank = if_else(total_points == 0,
-                               NA, rank(-total_points, ties.method = "first"))) %>%
-    ungroup() %>%
-    group_by(season, recent_team, player_display_name) %>%
-    summarise(top_6 = sum(if_else(week_rank <= 6, 1, 0), na.rm = TRUE),
-              top_12 = sum(if_else(week_rank <= 12, 1, 0), na.rm = TRUE),
-              top_18 = sum(if_else(week_rank <= 18, 1, 0), na.rm = TRUE),
-              top_24 = sum(if_else(week_rank <= 24, 1, 0), na.rm = TRUE),
-              games = n()) %>%
-    ungroup() %>%
-    filter(player_display_name == "CeeDee Lamb") %>%
-    select(season, recent_team, games, top_6, top_12, top_18, top_24) %>%
-    gt() %>%
-    gt_theme_538() %>%
-    tab_options(
-        heading.align = "center",
-    ) %>%
-    tab_header(
-        title = "Fantasy Finishes by Season",
-        subtitle = ""
-    ) %>%
-    cols_align(
-        "center"
-    ) %>%
-    cols_label(
-        season = "Season",
-        recent_team = "Team",
-        games = "Games",
-        top_6 = "Top 6",
-        top_12 = "Top 12",
-        top_18 = "Top 18",
-        top_24 = "Top 24"
-    ) %>%
-    cols_width(
-        columns = everything() ~ px(60)
-    ) %>%
-    tab_footnote(
-        "Figure: @MambaMetrics | Data: @nflfastR"
-    )
-
-
+   
