@@ -1162,7 +1162,6 @@ datatable(te_tbl)
 
 
 
-
 # ADP analysis ----
 # Select player
 player <- stats_yearly %>%
@@ -1489,7 +1488,7 @@ stats_yearly %>%
     theme_bw()
 
 stats_yearly %>%
-    filter(season == 2022 & position == "WR" & games >= 6 & average_points >= 12) %>%
+    filter(season == 2023 & position == "WR" & games >= 3 & average_points >= 12) %>%
     select(player_display_name, recent_team, games, total_points, average_points, std_dev) %>%
     ggplot(aes(std_dev, reorder(player_display_name, std_dev), fill = average_points)) +
     geom_col() +
@@ -2069,17 +2068,25 @@ stats_adp %>%
 
 
 
+
 # Archived player viz ----
 
 # Select player
 player <- stats_yearly %>%
-    filter(player_display_name == "Dak Prescott" & season == max(season)) %>%
+    filter(player_display_name == "D.J. Moore" & season == max(season)) %>%
     select(player_display_name, position, recent_team) %>%
     left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
 
 selected_season <- stats_yearly %>%
     select(season) %>%
     max()
+
+max_week <- stats_weekly %>%
+    filter(season == selected_season) %>%
+    select(week) %>%
+    max()
+
+selected_player_position <- player$position
 
 
 # Total and average points by season - add size for games played
@@ -2178,13 +2185,13 @@ stats_yearly %>%
     ) %>%
     select(
         player_display_name,
-        games_2021, total_points_2021, average_points_2021, std_dev_2021,
-        games_2022, total_points_2022, average_points_2022, std_dev_2022
+        games_2022, total_points_2022, average_points_2022, std_dev_2022,
+        games_2023, total_points_2023, average_points_2023, std_dev_2023
     ) %>%
     mutate(
-        total_points_change = (total_points_2022 - total_points_2021) / total_points_2021 * 100,
-        average_points_change = (average_points_2022 - average_points_2021) / average_points_2021 * 100,
-        std_dev_change = (std_dev_2022 - std_dev_2021) / std_dev_2021 * 100
+        total_points_change = (total_points_2023 - total_points_2022) / total_points_2022 * 100,
+        average_points_change = (average_points_2023 - average_points_2022) / average_points_2022 * 100,
+        std_dev_change = (std_dev_2023 - std_dev_2022) / std_dev_2022 * 100
     ) %>%
     gt() %>%
     gt_theme_538() %>%
@@ -2192,47 +2199,47 @@ stats_yearly %>%
     cols_align("center") %>%
     cols_label(
         player_display_name = "",
-        games_2021 = "Games",
         games_2022 = "Games",
-        total_points_2021 = "Total Points",
+        games_2023 = "Games",
         total_points_2022 = "Total Points",
-        average_points_2021 = "Avg Points",
+        total_points_2023 = "Total Points",
         average_points_2022 = "Avg Points",
-        std_dev_2021 = "Standard Deviation",
+        average_points_2023 = "Avg Points",
         std_dev_2022 = "Standard Deviation",
+        std_dev_2023 = "Standard Deviation",
         total_points_change = "Total Points % Change",
         average_points_change = "Avg Points % Change",
         std_dev_change = "Standard Deviation %Change"
     ) %>%
-    tab_spanner(label = "2021", columns = c(games_2021:std_dev_2021)) %>%
     tab_spanner(label = "2022", columns = c(games_2022:std_dev_2022)) %>%
+    tab_spanner(label = "2023", columns = c(games_2023:std_dev_2023)) %>%
     tab_spanner(label = "Y/Y Change", columns = c(total_points_change:std_dev_change)) %>%
     fmt_number(
         columns = c(
-            total_points_2021,  total_points_2022,
-            average_points_2021, average_points_2022,
-            std_dev_2021, std_dev_2022,
+            total_points_2022,  total_points_2023,
+            average_points_2022, average_points_2023,
+            std_dev_2022, std_dev_2023,
             total_points_change, average_points_change, std_dev_change
         ),
         decimals = 1
     ) %>%
     tab_style(
         style = cell_text(weight = "bold"),
-        locations = cells_body(columns = c(games_2021, games_2022))
+        locations = cells_body(columns = c(games_2022, games_2023))
     ) %>%
     tab_style(
         style = list(cell_text(color = "black", weight = "bold"),
                      cell_fill(color = player$team_color, alpha = 0.5)),
-        locations = cells_body(columns = c(total_points_2021,
-                                           average_points_2021,
-                                           std_dev_2021))
+        locations = cells_body(columns = c(total_points_2022,
+                                           average_points_2022,
+                                           std_dev_2022))
     ) %>%
     tab_style(
         style = list(cell_text(color = "black", weight = "bold"),
                      cell_fill(color = player$team_color2, alpha = 0.5)),
-        locations = cells_body(columns = c(total_points_2022,
-                                           average_points_2022,
-                                           std_dev_2022))
+        locations = cells_body(columns = c(total_points_2023,
+                                           average_points_2023,
+                                           std_dev_2023))
     ) %>%
     tab_style(
         style = list(cell_text(color = "black", weight = "bold"),
@@ -2242,7 +2249,7 @@ stats_yearly %>%
                                            std_dev_change))
     ) %>%
     gt_add_divider(
-        c(std_dev_2022,std_dev_2021),
+        c(std_dev_2023,std_dev_2022),
         sides = "right",
         color = "grey",
         style = "solid",
@@ -2271,7 +2278,7 @@ stats_yearly %>%
 if (selected_player_position == "QB") {
     stats_yearly %>%
         filter(player_display_name == player$player_display_name) %>%
-        select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
+        select(season,recent_team,games,total_points,average_points,vorp,tot_pos_rank,
                passing_yards,passing_tds,passing_epa,rushing_yards,rushing_tds) %>%
         arrange(season) %>%
         gt() %>%
@@ -2292,7 +2299,7 @@ if (selected_player_position == "QB") {
             total_points = "Total Points",
             average_points = "Average Points",
             vorp = "VORP",
-            pos_rank = "Position Rank",
+            tot_pos_rank = "Position Rank",
             passing_yards = "Pass Yards",
             passing_tds = "Pass TDs",
             passing_epa = "Pass EPA",
@@ -2306,7 +2313,7 @@ if (selected_player_position == "QB") {
 } else if (selected_player_position == "RB") {
     stats_yearly %>%
         filter(player_display_name == player$player_display_name) %>%
-        select(season,recent_team,games,total_points,average_points,vorp,pos_rank,
+        select(season,recent_team,games,total_points,average_points,vorp,tot_pos_rank,
                rushing_yards,rushing_tds,rushing_epa,
                receptions,receiving_yards,receiving_tds,receiving_epa) %>%
         arrange(season) %>%
@@ -2328,7 +2335,7 @@ if (selected_player_position == "QB") {
             total_points = "Total Points",
             average_points = "Average Points",
             vorp = "VORP",
-            pos_rank = "Position Rank",
+            tot_pos_rank = "Position Rank",
             rushing_yards = "Rush Yards",
             rushing_tds = "Rush TDs",
             rushing_epa = "Rush EPA",
@@ -2344,9 +2351,9 @@ if (selected_player_position == "QB") {
 } else if (selected_player_position %in% c("WR", "TE")) {
     stats_yearly %>%
         filter(player_display_name == player$player_display_name) %>%
-        select(season, recent_team, games, total_points, average_points, vorp, pos_rank,
-               touches, receptions, receiving_yards, receiving_tds, receiving_epa,
-               rushing_yards, rushing_tds, rushing_epa) %>%
+        select(season,recent_team,games,total_points,average_points,vorp,tot_pos_rank,
+               touches,receptions,receiving_yards,receiving_tds,receiving_epa,
+               rushing_yards,rushing_tds,rushing_epa) %>%
         arrange(season) %>%
         gt() %>%
         gt_theme_538() %>%
@@ -2366,7 +2373,7 @@ if (selected_player_position == "QB") {
             total_points = "Total Points",
             average_points = "Average Points",
             vorp = "VORP",
-            pos_rank = "Position Rank",
+            tot_pos_rank = "Position Rank",
             touches = "Touches",
             receptions = "Receptions",
             receiving_yards = "Receiving Yards",
@@ -2389,7 +2396,7 @@ if (selected_player_position == "QB") {
 # Rolling average table
 all_combinations <- expand.grid(player_display_name = unique(stats_weekly$player_display_name),
                                 position = player$position,
-                                week = 1:17)
+                                week = 1:max_week)
 stats_weekly %>%
     filter(position == player$position & season == selected_season) %>%
     arrange(week) %>%
