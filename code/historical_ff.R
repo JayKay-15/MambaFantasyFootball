@@ -15,7 +15,7 @@ library(DT)
 
 
 # Fantasy App Function ----
-ff_stats_app <- function(seasons = c(2018:2022), scoring = "ppr", league = "flex10") {
+ff_stats_app <- function(seasons = c(2018:2023), scoring = "ppr", league = "flex10") {
     
     pbp_fantasy <- nflfastR::load_pbp(seasons) %>%
         mutate(fantasy_season = if_else((season<=2020 & week<=16) |
@@ -1114,7 +1114,7 @@ colnames(test) <- c("season", "pos_rank_1", "adp_rank_1", "pos_rank_2", "adp_ran
 
 # All stats tables
 qb_tbl <- stats_yearly %>%
-    filter(position == "QB" & season == 2022 & games >= 6) %>%
+    filter(position == "QB" & season == 2023 & games >= 1) %>%
     select(player_display_name, season, recent_team, position, games,
            total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
            vorp, adp, adp_pos_rank, performance_diff,
@@ -1124,7 +1124,7 @@ qb_tbl <- stats_yearly %>%
 datatable(qb_tbl)
 
 rb_tbl <- stats_yearly %>%
-    filter(position == "RB" & season == 2022 & games >= 6) %>%
+    filter(position == "RB" & season == 2023 & games >= 1) %>%
     select(player_display_name, season, recent_team, position, games,
            total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
            vorp, adp, adp_pos_rank, performance_diff,
@@ -1136,7 +1136,7 @@ rb_tbl <- stats_yearly %>%
 datatable(rb_tbl)
 
 wr_tbl <- stats_yearly %>%
-    filter(position == "WR" & season == 2022 & games >= 6) %>%
+    filter(position == "WR" & season == 2023 & games >= 1) %>%
     select(player_display_name, season, recent_team, position, games,
            total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
            vorp, adp, adp_pos_rank, performance_diff,
@@ -1147,7 +1147,7 @@ wr_tbl <- stats_yearly %>%
 datatable(wr_tbl)
 
 te_tbl <- stats_yearly %>%
-    filter(position == "TE" & season == 2022 & games >= 6) %>%
+    filter(position == "TE" & season == 2023 & games >= 1) %>%
     select(player_display_name, season, recent_team, position, games,
            total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
            vorp, adp, adp_pos_rank, performance_diff,
