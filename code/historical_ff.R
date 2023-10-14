@@ -1783,7 +1783,7 @@ stats_adp %>%
 
 
 
-# Archived code ----
+# Dev code ----
 # pbp <- nflfastR::load_pbp(c(2013:2022))
 # pbp_fantasy <- nflfastR::load_pbp(c(2018:2022))
 # 
@@ -2069,7 +2069,7 @@ stats_adp %>%
 
 
 
-# Archived player viz ----
+# Dev player viz ----
 
 # Select player
 player <- stats_yearly %>%
@@ -3034,6 +3034,11 @@ if (player$position == "QB") {
     # Handle the case when the player's position is not recognized
     cat("Selected player's position is not recognized.")
 }
+
+
+
+
+
 
 
 
