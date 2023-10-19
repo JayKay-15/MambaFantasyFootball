@@ -977,7 +977,6 @@ ff_stats_app <- function(seasons = c(2018:2023), scoring = "ppr", league = "flex
     
 }
 
-
 ff_stats_app(scoring = "mfl", league = "mfl")
 
 
@@ -1510,7 +1509,7 @@ roster_pos <- roster %>%
     distinct()
 
 hvt_rb <- pbp_fantasy %>%
-    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
+    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2023) %>%
     left_join(roster_pos, by = c("receiver_id" = "gsis_id"), na_matches="never") %>%
     rename(receiver_full_name = full_name,
            receiver_position = position) %>%
@@ -1576,7 +1575,7 @@ hvt_rb %>%
 # https://www.opensourcefootball.com/posts/2020-08-25-open-source-fantasy-football-visualizing-trap-backs/
 
 hvt_wr <- pbp_fantasy %>%
-    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2022) %>%
+    filter(season_type == "REG", down <= 4, play_type != "no_play" & season == 2023) %>%
     left_join(roster_pos, by = c("receiver_id" = "gsis_id"), na_matches="never") %>%
     rename(receiver_full_name = full_name,
            receiver_position = position) %>%
@@ -1611,7 +1610,7 @@ hvt_wr <- pbp_fantasy %>%
                  names_to = "hvt_type", values_to = "touch_pct") %>%
     filter(total_pot_touches >= 75)
 
-hvt_wr %>%
+hvo_wr %>%
     ggplot(aes(touch_pct, reorder(player_name, touch_pct), fill = adot)) +
     geom_col() +
     scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
@@ -1640,7 +1639,8 @@ pal_hex <- c(
     "#d9f0d3", "#7fbf7b", "#1b7837"
 )
 
-hvt_wr %>%
+hvo_wr %>%
+    filter(season == selected_season & tgt >= mean(tgt)) %>%
     ggplot(aes(tgt, reorder(player_name, tgt), fill = adot)) +
     geom_col() +
     scale_x_continuous() +
