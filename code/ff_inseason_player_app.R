@@ -12,12 +12,9 @@ library(gt)
 library(gtExtras)
 library(DT) 
 
-# need to make attempts for hvo dynamic
-
 
 # Fantasy App Function ----
-ff_stats_app <- function(seasons = c(2018:2023),
-                         scoring = "ppr", league = "flex10") {
+ff_stats_app <- function(seasons = c(2018:2023), scoring = "ppr", league = "flex10") {
     
     pbp_fantasy <- nflfastR::load_pbp(seasons) %>%
         mutate(fantasy_season = if_else((season<=2020 & week<=16) |
@@ -860,10 +857,8 @@ ff_stats_app <- function(seasons = c(2018:2023),
         
     }
     
-    
     stats_yearly <- stats_yearly %>%
         left_join(stats_adj_final, by = c("player_id" = "player_id", "season" = "season"))
-    
     
     # ADP
     stats_yearly <<- stats_yearly %>%
@@ -1032,6 +1027,90 @@ ff_stats_app <- function(seasons = c(2018:2023),
         pivot_longer(cols = c(hvo_pot_pct),
                      names_to = "hvo_type", values_to = "touch_pct")
     
+    # Clustering
+    set.seed(214)
+    k_max <- 10
+    selected_season <- max(stats_yearly$season)
+    
+    vorp_tiers_final <- data.frame()
+    
+    for (i in unique(stats_yearly$position)) {
+        
+        km_vorp <- stats_yearly %>%
+            filter(season == selected_season & vorp > 0 & position == i)
+        
+        if (i %in% c("TE")) {
+            
+            km <- kmeans(km_vorp$vorp, centers = 3, nstart = 25, iter.max = 50)
+            
+            vorp_cluster <- bind_cols(km_vorp, cluster = km$cluster)
+            
+            unique_clusters <- unique(vorp_cluster$cluster)
+            
+            for (h in seq_along(unique_clusters)) {
+                
+                vorp_cluster$cluster[vorp_cluster$cluster == unique_clusters[h]] <- paste0("Tier ", h)
+                
+                vorp_tiers <- vorp_cluster %>%
+                    mutate(tier = as_factor(cluster)) %>%
+                    select(-cluster)
+            }
+            
+            vorp_tiers_viz <- vorp_tiers %>%
+                ggplot(aes(tot_pos_rank, vorp, color = tier)) +
+                geom_point() +
+                geom_text_repel(aes(label = player_display_name), show.legend = F) +
+                scale_x_continuous("Position Rank", breaks = seq(1, length(vorp_tiers), 1)) +
+                scale_y_continuous("VORP") +
+                labs(title = "VORP Tiers",
+                     x = "Position Rank",
+                     y = "VORP") +
+                guides(color = guide_legend(title = NULL)) +
+                theme_bw() +
+                theme(panel.grid.minor = element_blank())
+            
+            print(vorp_tiers_viz)
+            
+            vorp_tiers_final <- bind_rows(vorp_tiers_final,vorp_tiers)
+            
+        } else {
+            
+            km <- kmeans(km_vorp$vorp, centers = 4, nstart = 25, iter.max = 50)
+            
+            vorp_cluster <- bind_cols(km_vorp, cluster = km$cluster)
+            
+            unique_clusters <- unique(vorp_cluster$cluster)
+            
+            for (h in seq_along(unique_clusters)) {
+                
+                vorp_cluster$cluster[vorp_cluster$cluster == unique_clusters[h]] <- paste0("Tier ", h)
+                
+                vorp_tiers <- vorp_cluster %>%
+                    mutate(tier = as_factor(cluster)) %>%
+                    select(-cluster)
+            }
+            
+            vorp_tiers_viz <- vorp_tiers %>%
+                ggplot(aes(tot_pos_rank, vorp, color = tier)) +
+                geom_point() +
+                geom_text_repel(aes(label = player_display_name), show.legend = F) +
+                scale_x_continuous("Position Rank", breaks = seq(1, length(vorp_tiers), 1)) +
+                scale_y_continuous("VORP") +
+                labs(title = "VORP Tiers",
+                     x = "Position Rank",
+                     y = "VORP") +
+                guides(color = guide_legend(title = NULL)) +
+                theme_bw() +
+                theme(panel.grid.minor = element_blank())
+            
+            print(vorp_tiers_viz)
+            
+            vorp_tiers_final <- bind_rows(vorp_tiers_final,vorp_tiers)
+            
+        }
+    }
+    
+    vorp_tiers_final <<- vorp_tiers_final 
 }
 ff_stats_app(scoring = "mfl", league = "mfl")
 
@@ -1061,7 +1140,7 @@ selected_player_position <- player$position
 
 # All stats tables
 qb_tbl <- stats_yearly %>%
-    filter(position == "QB" & season == selected_season) %>%
+    filter(position == "QB" & season == 2023) %>%
     select(player_display_name, season, recent_team, position, games,
            total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
            vorp, adp, adp_pos_rank, performance_diff,
@@ -1071,7 +1150,7 @@ qb_tbl <- stats_yearly %>%
 datatable(qb_tbl)
 
 rb_tbl <- stats_yearly %>%
-    filter(position == "RB" & season == selected_season) %>%
+    filter(position == "RB" & season == 2023) %>%
     select(player_display_name, season, recent_team, position, games,
            total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
            vorp, adp, adp_pos_rank, performance_diff,
@@ -1083,7 +1162,7 @@ rb_tbl <- stats_yearly %>%
 datatable(rb_tbl)
 
 wr_tbl <- stats_yearly %>%
-    filter(position == "WR" & season == selected_season) %>%
+    filter(position == "WR" & season == 2023) %>%
     select(player_display_name, season, recent_team, position, games,
            total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
            vorp, adp, adp_pos_rank, performance_diff,
@@ -1094,7 +1173,7 @@ wr_tbl <- stats_yearly %>%
 datatable(wr_tbl)
 
 te_tbl <- stats_yearly %>%
-    filter(position == "TE" & season == selected_season) %>%
+    filter(position == "TE" & season == 2023) %>%
     select(player_display_name, season, recent_team, position, games,
            total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
            vorp, adp, adp_pos_rank, performance_diff,
@@ -1426,7 +1505,7 @@ for (i in unique(stats_yearly$position)) {
         
         print(vorp_tiers_viz)
         
-        proj_vorp_tiers <- bind_rows(vorp_tiers_final,vorp_tiers)
+        vorp_tiers_final <- bind_rows(vorp_tiers_final,vorp_tiers)
         
     } else {
         
