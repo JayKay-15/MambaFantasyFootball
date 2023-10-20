@@ -208,7 +208,7 @@ server <- function(input, output, session) {
         decimals = 1
       ) %>%
       cols_width(
-        columns = everything() ~ px(100)
+        columns = everything() ~ px(80)
       ) %>%
       gt_color_rows(
         total_points, 
@@ -243,15 +243,16 @@ server <- function(input, output, session) {
       
       hvo_qb %>%
         filter(hvo_type == "hvo_pct" &
-                 season == selected_season() &
-                 attempts >= floor(median(hvo_qb$attempts)/10)*10) %>%
+                 season == selected_season()) %>%
+        arrange(desc(attempts)) %>%
+        head(20) %>%
         ggplot(aes(attempts, reorder(player_name, attempts), fill = rush_attempts)) +
         geom_col() +
         scale_x_continuous() +
         scale_fill_gradientn(colors = pal_hex) +
-        labs(x = "Attempts",
+        labs(x = "Pass Attempts",
              y = "",
-             title = paste0("Total Attempts (min. ",floor(median(hvo_qb$attempts)/10)*10," attempts)"),
+             title = paste0("Total Pass Attempts (Top 20 QB)"),
              caption = "Figure: @MambaMetrics | Data: @nflfastR",
              fill = "Rush Att.")+
         theme(axis.title.y = element_blank(),
@@ -264,16 +265,17 @@ server <- function(input, output, session) {
       
       hvo_rb %>%
         filter(hvo_type == "hvo_pct" & 
-                 season == selected_season() &
-                 total_touches >= floor(median(hvo_rb$total_touches)/10)*10) %>%
+                 season == selected_season()) %>%
+        arrange(desc(total_touches)) %>%
+        head(40) %>%
         ggplot(aes(total_touches, reorder(player_name, total_touches), fill = touch_pct)) +
         geom_col() +
         scale_x_continuous() +
         scale_fill_gradientn(colors = pal_hex, labels=scales::percent) +
         labs(x = "Total Touches",
              y = "",
-             title = paste0("Total Touches (min. ",floor(median(hvo_rb$total_touches)/10)*10," touches)"),
-             subtitle = "HVO is a reception or carry inside the 10 yard line",
+             title = paste0("Total Touches (Top 40 RB)"),
+             subtitle = "HVO %: carry inside the 10 yard line or catch as a percent of total touches",
              caption = "Figure: @MambaMetrics | Data: @nflfastR",
              fill = "HVO %") +
         theme(axis.title.y = element_blank(),
@@ -284,15 +286,16 @@ server <- function(input, output, session) {
     } else if (selected_position() == "WR") {
       
       hvo_wr %>%
-        filter(season == selected_season() &
-                 tgt >= ceiling(median(hvo_wr$tgt)/10)*10) %>%
+        filter(season == selected_season()) %>%
+        arrange(desc(tgt)) %>%
+        head(40) %>%
         ggplot(aes(tgt, reorder(player_name, tgt), fill = adot)) +
         geom_col() +
         scale_x_continuous() +
         scale_fill_gradientn(colors = pal_hex) +
         labs(x = "Targets",
              y = "",
-             title = paste0("Total Targets (min. ",ceiling(median(hvo_wr$tgt)/10)*10," targets)"),
+             title = paste0("Total Targets (Top 40 WR)"),
              caption = "Figure: @MambaMetrics | Data: @nflfastR",
              fill = "aDot") +
         theme(axis.title.y = element_blank(),
@@ -303,15 +306,16 @@ server <- function(input, output, session) {
     } else if (selected_position() == "TE") {
       
       hvo_te %>%
-        filter(season == selected_season() &
-                 tgt >= floor(median(hvo_te$tgt)/10)*10) %>%
+        filter(season == selected_season()) %>%
+        arrange(desc(tgt)) %>%
+        head(20) %>%
         ggplot(aes(tgt, reorder(player_name, tgt), fill = adot)) +
         geom_col() +
         scale_x_continuous() +
         scale_fill_gradientn(colors = pal_hex) +
         labs(x = "Targets",
              y = "",
-             title = paste0("Total Targets (min. ",floor(median(hvo_wr$tgt)/10)*10," targets)"),
+             title = paste0("Total Targets (Top 20 TE)"),
              caption = "Figure: @MambaMetrics | Data: @nflfastR",
              fill = "aDot") +
         theme(axis.title.y = element_blank(),
@@ -326,11 +330,102 @@ server <- function(input, output, session) {
     
   })
   
+  # # opportunities totals
+  # output$plot3 <- renderPlot({
+  #   
+  #   # opportunities by position
+  #   if (selected_position() == "QB") {
+  #     
+  #     hvo_qb %>%
+  #       filter(hvo_type == "hvo_pct" &
+  #                season == selected_season() &
+  #                attempts >= floor(median(hvo_qb$attempts)/10)*10) %>%
+  #       ggplot(aes(attempts, reorder(player_name, attempts), fill = rush_attempts)) +
+  #       geom_col() +
+  #       scale_x_continuous() +
+  #       scale_fill_gradientn(colors = pal_hex) +
+  #       labs(x = "Pass Attempts",
+  #            y = "",
+  #            title = paste0("Total Pass Attempts (min. ",floor(median(hvo_qb$attempts)/10)*10," attempts)"),
+  #            caption = "Figure: @MambaMetrics | Data: @nflfastR",
+  #            fill = "Rush Att.")+
+  #       theme(axis.title.y = element_blank(),
+  #             axis.ticks.y = element_blank(),
+  #             axis.title.x = element_blank()) +
+  #       theme_dark()
+  #     
+  #     
+  #   } else if (selected_position() == "RB") {
+  #     
+  #     hvo_rb %>%
+  #       filter(hvo_type == "hvo_pct" & 
+  #                season == selected_season() &
+  #                total_touches >= floor(median(hvo_rb$total_touches)/10)*10) %>%
+  #       ggplot(aes(total_touches, reorder(player_name, total_touches), fill = touch_pct)) +
+  #       geom_col() +
+  #       scale_x_continuous() +
+  #       scale_fill_gradientn(colors = pal_hex, labels=scales::percent) +
+  #       labs(x = "Total Touches",
+  #            y = "",
+  #            title = paste0("Total Touches (min. ",floor(median(hvo_rb$total_touches)/10)*10," touches)"),
+  #            subtitle = "HVO is a reception or carry inside the 10 yard line",
+  #            caption = "Figure: @MambaMetrics | Data: @nflfastR",
+  #            fill = "HVO %") +
+  #       theme(axis.title.y = element_blank(),
+  #             axis.ticks.y = element_blank(),
+  #             axis.title.x = element_blank()) +
+  #       theme_dark()
+  #     
+  #   } else if (selected_position() == "WR") {
+  #     
+  #     hvo_wr %>%
+  #       filter(season == selected_season() &
+  #                tgt >= ceiling(median(hvo_wr$tgt)/10)*10) %>%
+  #       ggplot(aes(tgt, reorder(player_name, tgt), fill = adot)) +
+  #       geom_col() +
+  #       scale_x_continuous() +
+  #       scale_fill_gradientn(colors = pal_hex) +
+  #       labs(x = "Targets",
+  #            y = "",
+  #            title = paste0("Total Targets (min. ",ceiling(median(hvo_wr$tgt)/10)*10," targets)"),
+  #            caption = "Figure: @MambaMetrics | Data: @nflfastR",
+  #            fill = "aDot") +
+  #       theme(axis.title.y = element_blank(),
+  #             axis.ticks.y = element_blank(),
+  #             axis.title.x = element_blank()) +
+  #       theme_dark()
+  #     
+  #   } else if (selected_position() == "TE") {
+  #     
+  #     hvo_te %>%
+  #       filter(season == selected_season() &
+  #                tgt >= floor(median(hvo_te$tgt)/10)*10) %>%
+  #       ggplot(aes(tgt, reorder(player_name, tgt), fill = adot)) +
+  #       geom_col() +
+  #       scale_x_continuous() +
+  #       scale_fill_gradientn(colors = pal_hex) +
+  #       labs(x = "Targets",
+  #            y = "",
+  #            title = paste0("Total Targets (min. ",floor(median(hvo_wr$tgt)/10)*10," targets)"),
+  #            caption = "Figure: @MambaMetrics | Data: @nflfastR",
+  #            fill = "aDot") +
+  #       theme(axis.title.y = element_blank(),
+  #             axis.ticks.y = element_blank(),
+  #             axis.title.x = element_blank()) +
+  #       theme_dark()
+  #     
+  #   } else {
+  #     # Handle the case when the player's position is not recognized
+  #     cat("Selected player's position is not recognized.")
+  #   }
+  #   
+  # })
+  
   # positional tiers
   output$plot4 <- render_gt({
     
     vorp_tiers_final %>%
-      filter(position == selected_position()) %>%
+      filter(position == selected_position() & season == selected_season()) %>%
       select(player_display_name, vorp, tier) %>%
       arrange(tier, desc(vorp)) %>%
       gt() %>%
@@ -472,27 +567,30 @@ ui <- fluidPage(
                            selectInput("player1", "Select Player:",
                                        choices = unique(stats_yearly$player_display_name),
                                        selectize = TRUE),
+                           gt_output("plot2"),
                            width = 4
                          ),
                          mainPanel(
                            fluidRow(
-                             column(12, plotOutput("plot1", height = 300)),
+                             column(12, plotOutput("plot1", height = 500)),
                              h3(textOutput(""), align = "center")
-                           ),
-                           fluidRow(
-                             column(8, gt_output("plot2")),
-                             column(4, gt_output("plot4"))
                            )
                          )
                        )
               ),
               tabPanel("Opportunities", fluid = T,
+                       sidebarLayout(
+                         sidebarPanel(
+                           gt_output("plot4"),
+                           width = 4
+                         ),
                          mainPanel(
                            fluidRow(
                              column(12, plotOutput("plot3", height = 750)),
                              h3(textOutput(""), align = "center")
                            )
                          )
+                       )
               ),
               tabPanel("Stats", fluid = T,
                        mainPanel(
