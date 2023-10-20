@@ -10,7 +10,9 @@ library(gtExtras)
 library(DT) 
 
 # Load Fantasy App Data ----
-load("ff_player_app.RData")
+load(file = "ff_data_week_6.RData")
+
+# years by season
 
 # Fantasy Football Shiny App ----
 stats_yearly <- stats_yearly %>% arrange(desc(season), player_display_name)
@@ -20,37 +22,28 @@ stats_weekly <- stats_weekly %>% arrange(desc(season), player_display_name)
 # Server ----
 server <- function(input, output, session) {
   
+  # Year filter sync
+  selected_season <- reactiveVal(max(stats_yearly$season))
+  
+  observeEvent(input$year1, {
+    updateSelectInput(session, "year1", selected=input$year1)
+    selected_season(input$year1)
+  })
+  
   # Position filter sync
   selected_position <- reactiveVal("QB")
   
   observeEvent(input$position1, {
-    updateSelectInput(session, "position2", selected=input$position1)
+    updateSelectInput(session, "position1", selected=input$position1)
     selected_position(input$position1)
   })
-  observeEvent(input$position2, {
-    updateSelectInput(session, "position1", selected=input$position2)
-    selected_position(input$position2)
-  })
-  observeEvent(input$position2, {
-    updateSelectInput(session, "position3", selected=input$position2)
-    selected_position(input$position2)
-  })
-  
-  
+
   # Player filter sync
   selected_player <- reactiveVal(stats_yearly$player_display_name[1])
   
   observeEvent(input$player1, {
-    updateSelectInput(session, "player2", selected=input$player1)
+    updateSelectInput(session, "player1", selected=input$player1)
     selected_player(input$player1)
-  })
-  observeEvent(input$player2, {
-    updateSelectInput(session, "player1", selected=input$player2)
-    selected_player(input$player2)
-  })
-  observeEvent(input$player2, {
-    updateSelectInput(session, "player3", selected=input$player2)
-    selected_player(input$player2)
   })
   
   # Update the available players based on the selected position
@@ -60,10 +53,7 @@ server <- function(input, output, session) {
       pull(player_display_name) %>%
       unique()
     updateSelectInput(session, "player1", choices = players, selected = players[1])
-    updateSelectInput(session, "player2", choices = players, selected = players[1])
-    updateSelectInput(session, "player3", choices = players, selected = players[1])
   })
-  
   
   # Update the available seasons based on the selected player
   observeEvent(selected_player(), {
@@ -71,20 +61,20 @@ server <- function(input, output, session) {
       filter(player_display_name == selected_player()) %>%
       pull(season) %>%
       unique()
-    updateSelectInput(session, "year", choices = seasons, selected = max(seasons))
+    updateSelectInput(session, "year1", choices = seasons, selected = max(seasons))
   })
   
   # Reactive player
   player <- reactive({
     stats_yearly %>%
-      filter(player_display_name == selected_player() & season == input$year) %>%
+      filter(player_display_name == selected_player() & season == selected_season()) %>%
       select(player_display_name, position, recent_team) %>%
       left_join(nflfastR::teams_colors_logos, by = c("recent_team" = "team_abbr"))
   })
   
   max_week <- reactive({
     stats_weekly %>%
-      filter(season == input$year) %>%
+      filter(season == selected_season()) %>%
       select(week) %>%
       max()
   })
@@ -97,7 +87,7 @@ server <- function(input, output, session) {
   
   finishes_pct_tbl <- reactive({
     stats_weekly %>%
-      filter(position == selected_position() & season == input$year) %>%
+      filter(position == selected_position() & season == selected_season()) %>%
       arrange(week) %>%
       group_by(player_display_name) %>%
       mutate(average_points = round(cummean(total_points),2),
@@ -123,7 +113,7 @@ server <- function(input, output, session) {
                                     week = 1:max_week())
     
     stats_weekly %>%
-      filter(position == player()$position & season == input$year) %>%
+      filter(position == selected_position() & season == selected_season()) %>%
       arrange(week) %>%
       group_by(player_display_name) %>%
       mutate(average_points = round(cummean(total_points),2)) %>%
@@ -170,11 +160,11 @@ server <- function(input, output, session) {
   # fantasy performance by week
   output$plot2 <- render_gt({
     all_combinations <- expand.grid(player_display_name = unique(stats_weekly$player_display_name),
-                                    position = player()$position,
+                                    position = selected_position(),
                                     week = 1:max_week())
     
     stats_weekly %>%
-      filter(position == player()$position & season == input$year) %>%
+      filter(position == selected_position() & season == selected_season()) %>%
       arrange(week) %>%
       group_by(player_display_name) %>%
       mutate(average_points = round(cummean(total_points),2),
@@ -218,7 +208,7 @@ server <- function(input, output, session) {
         decimals = 1
       ) %>%
       cols_width(
-        columns = everything() ~ px(80)
+        columns = everything() ~ px(100)
       ) %>%
       gt_color_rows(
         total_points, 
@@ -249,11 +239,11 @@ server <- function(input, output, session) {
   output$plot3 <- renderPlot({
     
     # opportunities by position
-    if (player()$position == "QB") {
+    if (selected_position() == "QB") {
       
       hvo_qb %>%
         filter(hvo_type == "hvo_pct" &
-                 season == input$year &
+                 season == selected_season() &
                  attempts >= floor(median(hvo_qb$attempts)/10)*10) %>%
         ggplot(aes(attempts, reorder(player_name, attempts), fill = rush_attempts)) +
         geom_col() +
@@ -270,11 +260,11 @@ server <- function(input, output, session) {
         theme_dark()
       
       
-    } else if (player()$position == "RB") {
+    } else if (selected_position() == "RB") {
       
       hvo_rb %>%
         filter(hvo_type == "hvo_pct" & 
-                 season == input$year &
+                 season == selected_season() &
                  total_touches >= floor(median(hvo_rb$total_touches)/10)*10) %>%
         ggplot(aes(total_touches, reorder(player_name, total_touches), fill = touch_pct)) +
         geom_col() +
@@ -283,6 +273,7 @@ server <- function(input, output, session) {
         labs(x = "Total Touches",
              y = "",
              title = paste0("Total Touches (min. ",floor(median(hvo_rb$total_touches)/10)*10," touches)"),
+             subtitle = "HVO is a reception or carry inside the 10 yard line",
              caption = "Figure: @MambaMetrics | Data: @nflfastR",
              fill = "HVO %") +
         theme(axis.title.y = element_blank(),
@@ -290,17 +281,18 @@ server <- function(input, output, session) {
               axis.title.x = element_blank()) +
         theme_dark()
       
-    } else if (player()$position == "WR") {
+    } else if (selected_position() == "WR") {
       
       hvo_wr %>%
-        filter(season == input$year & tgt >= floor(median(hvo_wr$tgt)/10)*10) %>%
+        filter(season == selected_season() &
+                 tgt >= ceiling(median(hvo_wr$tgt)/10)*10) %>%
         ggplot(aes(tgt, reorder(player_name, tgt), fill = adot)) +
         geom_col() +
         scale_x_continuous() +
         scale_fill_gradientn(colors = pal_hex) +
         labs(x = "Targets",
              y = "",
-             title = paste0("Total Targets (min. ",floor(median(hvo_wr$tgt)/10)*10," targets)"),
+             title = paste0("Total Targets (min. ",ceiling(median(hvo_wr$tgt)/10)*10," targets)"),
              caption = "Figure: @MambaMetrics | Data: @nflfastR",
              fill = "aDot") +
         theme(axis.title.y = element_blank(),
@@ -308,10 +300,11 @@ server <- function(input, output, session) {
               axis.title.x = element_blank()) +
         theme_dark()
       
-    } else if (player()$position == "TE") {
+    } else if (selected_position() == "TE") {
       
       hvo_te %>%
-        filter(season == input$year & tgt >= floor(median(hvo_te$tgt)/10)*10) %>%
+        filter(season == selected_season() &
+                 tgt >= floor(median(hvo_te$tgt)/10)*10) %>%
         ggplot(aes(tgt, reorder(player_name, tgt), fill = adot)) +
         geom_col() +
         scale_x_continuous() +
@@ -337,7 +330,7 @@ server <- function(input, output, session) {
   output$plot4 <- render_gt({
     
     vorp_tiers_final %>%
-      filter(position == player()$position) %>%
+      filter(position == selected_position()) %>%
       select(player_display_name, vorp, tier) %>%
       arrange(tier, desc(vorp)) %>%
       gt() %>%
@@ -386,6 +379,73 @@ server <- function(input, output, session) {
       )
   })
   
+  # stats tables
+  output$plot5 <- renderDT({
+    
+    qb_tbl <- stats_yearly %>%
+      filter(position == "QB" & season == selected_season()) %>%
+      select(player_display_name, season, recent_team, position, games,
+             total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
+             vorp, adp, adp_pos_rank, performance_diff,
+             completions, attempts, passing_yards, passing_tds, passing_air_yards,
+             carries, rushing_yards, rushing_tds) %>%
+      arrange(desc(total_points))
+    
+    rb_tbl <- stats_yearly %>%
+      filter(position == "RB" & season == selected_season()) %>%
+      select(player_display_name, season, recent_team, position, games,
+             total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
+             vorp, adp, adp_pos_rank, performance_diff,
+             carries, rushing_yards, rushing_tds,
+             receptions, receiving_yards, receiving_tds, targets, target_share,
+             receiving_air_yards, receiving_yards_after_catch, wopr) %>%
+      mutate(across(c(target_share,wopr), \(x) round(x, 3))) %>%
+      arrange(desc(total_points))
+    
+    wr_tbl <- stats_yearly %>%
+      filter(position == "WR" & season == selected_season()) %>%
+      select(player_display_name, season, recent_team, position, games,
+             total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
+             vorp, adp, adp_pos_rank, performance_diff,
+             receptions, receiving_yards, receiving_tds, targets, target_share,
+             receiving_air_yards, receiving_yards_after_catch, wopr) %>%
+      mutate(across(c(target_share,wopr), \(x) round(x, 3))) %>%
+      arrange(desc(total_points))
+    
+    te_tbl <- stats_yearly %>%
+      filter(position == "TE" & season == selected_season()) %>%
+      select(player_display_name, season, recent_team, position, games,
+             total_points, tot_pos_rank, average_points, avg_pos_rank, std_dev,
+             vorp, adp, adp_pos_rank, performance_diff,
+             receptions, receiving_yards, receiving_tds, targets, target_share,
+             receiving_air_yards, receiving_yards_after_catch, wopr) %>%
+      mutate(across(c(target_share,wopr), \(x) round(x, 3))) %>%
+      arrange(desc(total_points))
+    
+    # opportunities by position
+    if (selected_position() == "QB") {
+      
+      datatable(qb_tbl)
+      
+    } else if (selected_position() == "RB") {
+      
+      datatable(rb_tbl)
+      
+    } else if (selected_position() == "WR") {
+      
+      datatable(wr_tbl)
+      
+    } else if (selected_position() == "TE") {
+      
+      datatable(te_tbl)
+      
+    } else {
+      # Handle the case when the player's position is not recognized
+      cat("Selected player's position is not recognized.")
+    }
+    
+  })
+  
 }
 
 
@@ -396,20 +456,22 @@ ui <- fluidPage(
   
   titlePanel("Fantasy Football Player Dashboard"),
   
+  fluidRow(
+    selectInput("position1", "Position",
+                choices = c("QB", "RB", "WR", "TE"),
+                selected = "QB"),
+    selectInput("year1", "Season",
+                choices = NULL,
+                selected = max(stats_yearly$season))
+  ),
+
   tabsetPanel(type = "tabs",
               tabPanel("Overview", fluid = T,
                        sidebarLayout(
                          sidebarPanel(
-                           selectInput("position1", "Select Position:",
-                                       choices = c("QB", "RB", "WR", "TE"),
-                                       selected = "QB"),
                            selectInput("player1", "Select Player:",
                                        choices = unique(stats_yearly$player_display_name),
                                        selectize = TRUE),
-                           selectInput("year", "Select Season:",
-                                       choices = NULL,
-                                       selected = max(stats_yearly$season)),
-                           gt_output("plot4"),
                            width = 4
                          ),
                          mainPanel(
@@ -418,29 +480,25 @@ ui <- fluidPage(
                              h3(textOutput(""), align = "center")
                            ),
                            fluidRow(
-                             column(12, gt_output("plot2"))
+                             column(8, gt_output("plot2")),
+                             column(4, gt_output("plot4"))
                            )
                          )
                        )
               ),
               tabPanel("Opportunities", fluid = T,
-                       sidebarLayout(
-                         sidebarPanel(
-                           selectInput("position1", "Select Position:",
-                                       choices = c("QB", "RB", "WR", "TE"),
-                                       selected = "QB"),
-                           selectInput("player1", "Select Player:",
-                                       choices = unique(stats_yearly$player_display_name),
-                                       selectize = TRUE),
-                           selectInput("year", "Select Season:",
-                                       choices = NULL,
-                                       selected = max(stats_yearly$season))
-                         ),
                          mainPanel(
                            fluidRow(
-                             column(12, plotOutput("plot3", height = 650)),
+                             column(12, plotOutput("plot3", height = 750)),
                              h3(textOutput(""), align = "center")
                            )
+                         )
+              ),
+              tabPanel("Stats", fluid = T,
+                       mainPanel(
+                         fluidRow(
+                           column(12, DTOutput("plot5")),
+                           h3(textOutput(""), align = "center")
                          )
                        )
               )
@@ -449,5 +507,114 @@ ui <- fluidPage(
 
 # Run the Shiny app
 shinyApp(ui, server)
+
+
+
+# observeEvent(input$position1, {
+#   updateSelectInput(session, "position2", selected=input$position1)
+#   selected_position(input$position1)
+# })
+# observeEvent(input$position2, {
+#   updateSelectInput(session, "position1", selected=input$position2)
+#   selected_position(input$position2)
+# })
+
+# # Update the available players based on the selected position
+# observeEvent(selected_position(), {
+#   players <- stats_yearly %>%
+#     filter(position == selected_position()) %>%
+#     pull(player_display_name) %>%
+#     unique()
+#   updateSelectInput(session, "player1", choices = players, selected = players[1])
+#   updateSelectInput(session, "player2", choices = players, selected = players[1])
+#   updateSelectInput(session, "player3", choices = players, selected = players[1])
+# })
+# 
+# # Update the available seasons based on the selected player
+# observeEvent(selected_player(), {
+#   seasons <- stats_yearly %>%
+#     filter(player_display_name == selected_player()) %>%
+#     pull(season) %>%
+#     unique()
+#   # updateSelectInput(session, "year1", choices = seasons, selected = max(seasons))
+#   # # updateSelectInput(session, "year2", choices = seasons, selected = max(seasons))
+# })
+
+
+# # UI ----
+# ui <- fluidPage(
+#   
+#   theme = bslib::bs_theme(bootswatch = "darkly"),
+#   
+#   titlePanel("Fantasy Football Player Dashboard"),
+#   
+#   fluidRow(
+#     selectInput("position1", "Position",
+#                 choices = c("QB", "RB", "WR", "TE"),
+#                 selected = "QB")
+#   ),
+#   
+#   tabsetPanel(type = "tabs",
+#               tabPanel("Overview", fluid = T,
+#                        sidebarLayout(
+#                          sidebarPanel(
+#                            selectInput("position1", "Select Position:",
+#                                        choices = c("QB", "RB", "WR", "TE"),
+#                                        selected = "QB"),
+#                            selectInput("player1", "Select Player:",
+#                                        choices = unique(stats_yearly$player_display_name),
+#                                        selectize = TRUE),
+#                            selectInput("year", "Select Season:",
+#                                        choices = NULL,
+#                                        selected = max(stats_yearly$season)),
+#                            gt_output("plot4"),
+#                            width = 4
+#                          ),
+#                          mainPanel(
+#                            fluidRow(
+#                              column(12, plotOutput("plot1", height = 300)),
+#                              h3(textOutput(""), align = "center")
+#                            ),
+#                            fluidRow(
+#                              column(12, gt_output("plot2"))
+#                            )
+#                          )
+#                        )
+#               ),
+#               tabPanel("Opportunities", fluid = T,
+#                        sidebarLayout(
+#                          sidebarPanel(
+#                            selectInput("position2", "Select Position:",
+#                                        choices = c("QB", "RB", "WR", "TE"),
+#                                        selected = "QB")
+#                          ),
+#                          mainPanel(
+#                            fluidRow(
+#                              column(12, plotOutput("plot3", height = 650)),
+#                              h3(textOutput(""), align = "center")
+#                            )
+#                          )
+#                        )
+#               ),
+#               tabPanel("Stats", fluid = T,
+#                        sidebarLayout(
+#                          sidebarPanel(
+#                            selectInput("position3", "Select Position:",
+#                                        choices = c("QB", "RB", "WR", "TE"),
+#                                        selected = "QB")
+#                          ),
+#                          mainPanel(
+#                            fluidRow(
+#                              column(12, DTOutput("plot5", height = 650)),
+#                              h3(textOutput(""), align = "center")
+#                            )
+#                          )
+#                        )
+#               )
+#   )
+# )
+
+
+
 
 
