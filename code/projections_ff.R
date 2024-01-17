@@ -327,7 +327,7 @@ ss_write <- "https://docs.google.com/spreadsheets/d/1RAsyEd7ZglSqp3K0qyT_XESwTjF
 
 sheet_write(proj_vorp_final, ss = ss_write, sheet = "VORP")
 
-# Read from GOogle Sheets
+# Read from Google Sheets
 ss_read <- "https://docs.google.com/spreadsheets/d/1RAsyEd7ZglSqp3K0qyT_XESwTjFLTEPQLANebwzzE-k/edit#gid=545950503"
 
 google <- read_sheet(ss = ss_read, sheet = "Export VORP Adj")
